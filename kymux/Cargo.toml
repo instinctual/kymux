@@ -1,0 +1,24 @@
+[package]
+name = "kymux"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures-util = "0.3.24"
+log = "0.4.17"
+quinn = "0.9.3"
+quinn-proto = "0.9.2"
+rand = "0.8.5"
+rcgen = "0.9.3"
+rmp-serde = "1.1.1"
+rustls = { version = "0.20.6", features = ["quic"] }
+serde = {version = "1.0.148", features = ["derive"] }
+thiserror = "1.0.37"
+tokio = { version = "1.20.1", features = ["sync", "macros", "rt", "rt-multi-thread", "fs", "io-util"] }
+
+[dev-dependencies]
+env_logger = "0.9.0"
+rand = "0.8.5"
+sha1 = "0.10.5"
+
+kymux_client = { path = "../kymux_client" }

@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "kymux",
+    "kymux_client",
+]
