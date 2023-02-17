@@ -321,7 +321,15 @@ impl Connection {
             return Err(Error::EndpointConnectRejected);
         }
 
-        Self::new(conn, ctrlchan_tx, ctrlchan_rx, config.client_listener_port).await
+        // Apply an offset when Kymux is used as the Connection intiator.
+        // It allows the Client and the Host to run on the same machine.
+        Self::new(
+            conn,
+            ctrlchan_tx,
+            ctrlchan_rx,
+            config.client_listener_port + 1,
+        )
+        .await
     }
 
     pub async fn stop(&mut self) -> Result<()> {
