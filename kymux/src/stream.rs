@@ -8,7 +8,8 @@ pub enum StreamOwner {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum StreamType {
-    AudioVideo,
+    Video,
+    Audio,
     Input,
 }
 

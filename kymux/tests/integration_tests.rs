@@ -371,7 +371,7 @@ async fn stress_test() {
     for i in 0..50 {
         // Create the endpoint
         let (connection, stream_type, stream_dir) = if i % 2 == 0 {
-            (&mut client, StreamType::AudioVideo, StreamDirection::Uni)
+            (&mut client, StreamType::Video, StreamDirection::Uni)
         } else {
             (&mut server, StreamType::Input, StreamDirection::Bi)
         };
