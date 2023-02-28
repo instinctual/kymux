@@ -113,6 +113,7 @@ impl State {
 
 pub struct Connecting {
     connection: quinn::Connection,
+    endpoint: quinn::Endpoint,
     ctrlchan_tx: quinn::SendStream,
     ctrlchan_rx: quinn::RecvStream,
     client_listener_port: u16,
@@ -129,6 +130,7 @@ impl Connecting {
 
         Connection::new(
             self.connection,
+            self.endpoint,
             self.ctrlchan_tx,
             self.ctrlchan_rx,
             self.client_listener_port,
@@ -197,10 +199,15 @@ impl ConnectionListener {
 
         Ok(Connecting {
             connection,
+            endpoint: self.endpoint,
             ctrlchan_tx,
             ctrlchan_rx,
             client_listener_port: self.client_listener_port,
         })
+    }
+
+    pub async fn wait_idle(&self) {
+        self.endpoint.wait_idle().await
     }
 }
 
@@ -211,6 +218,7 @@ struct Task {
 
 pub struct Connection {
     _conn: quinn::Connection,
+    endpoint: quinn::Endpoint,
 
     ctrlchan_tx: mpsc::Sender<ControlMsg>,
 
@@ -223,6 +231,7 @@ pub struct Connection {
 impl Connection {
     async fn new(
         conn: quinn::Connection,
+        endpoint: quinn::Endpoint,
         ctrlchan_tx: quinn::SendStream,
         ctrlchan_rx: quinn::RecvStream,
         client_listener_port: u16,
@@ -278,6 +287,7 @@ impl Connection {
 
         Ok(Self {
             _conn: conn,
+            endpoint,
             ctrlchan_tx: msg_tx,
             state,
             client_listening_addr,
@@ -341,6 +351,7 @@ impl Connection {
         // It allows the Client and the Host to run on the same machine.
         Self::new(
             conn,
+            endpoint,
             ctrlchan_tx,
             ctrlchan_rx,
             config.client_listener_port + 1,
@@ -439,6 +450,10 @@ impl Connection {
         debug!("Local endpoint 0x{id:X} registered");
 
         Ok(id)
+    }
+
+    pub async fn wait_idle(&self) {
+        self.endpoint.wait_idle().await
     }
 
     pub async fn endpoints(&self) -> Result<Vec<EndpointDesc>> {
