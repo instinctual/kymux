@@ -6,7 +6,7 @@ pub enum StreamOwner {
     Peer,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum StreamType {
     Video,
     Audio,
