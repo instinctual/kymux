@@ -6,7 +6,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{mpsc, Mutex};
 
 use crate::io_utils;
-use crate::{Endpoint, EndpointDesc, State, StreamDirection, StreamOwner, StreamType};
+use crate::{EndpointBuilder, EndpointDesc, State, StreamDirection, StreamOwner, StreamType};
 use crate::{Error, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -103,7 +103,7 @@ impl ControlTask {
                 type_,
                 dir: direction,
             } => {
-                let endpoint = Endpoint::new(EndpointDesc {
+                let endpoint_builder = EndpointBuilder::new(EndpointDesc {
                     id,
                     owner: StreamOwner::Peer,
                     type_,
@@ -112,7 +112,7 @@ impl ControlTask {
 
                 {
                     let mut state = state.lock().await;
-                    state.endpoints.insert(id, endpoint);
+                    state.endpoint_builders.insert(id, endpoint_builder);
                 }
 
                 debug!("Received register endpoint {id:X}, {direction:?}: Done");
@@ -139,13 +139,15 @@ impl ControlTask {
             }
             ControlMsg::ClientConnected { endpoint_id } => {
                 let mut state = state.lock().await;
-                let Some(endpoint) = state.endpoints.get_mut(&endpoint_id) else {
+                let Some(endpoint_builder) = state.endpoint_builders.get_mut(&endpoint_id) else {
                     error!("Got ClientConnected for unknown stream {endpoint_id:X}");
                     return Err(Error::InvalidControlMsg);
                 };
 
                 debug!("Peer has notified that its local client is connected");
-                endpoint.peer_client_connected().await?;
+                endpoint_builder.peer_client_connected()?;
+
+                state.start_endpoint(endpoint_id).await?;
             }
         }
 

@@ -60,12 +60,12 @@ impl ClientListener {
         // operation will be done later.
         let endpoint_desc = {
             let mut state = self.state.lock().await;
-            let Some(endpoint) = state.endpoints.get_mut(&endpoint_id) else {
+            let Some(endpoint_builder) = state.endpoint_builders.get_mut(&endpoint_id) else {
                 warn!("Received connection to unknown stream {endpoint_id:X}");
                 return Ok(());
             };
 
-            *endpoint.desc()
+            *endpoint_builder.desc()
         };
 
         // Open Quic stream if required
@@ -103,16 +103,18 @@ impl ClientListener {
         {
             // Update endpoint
             let mut state = self.state.lock().await;
-            let Some(endpoint) = state.endpoints.get_mut(&endpoint_id) else {
+            let Some(endpoint_builder) = state.endpoint_builders.get_mut(&endpoint_id) else {
                 warn!("Received connection to unknown stream {endpoint_id:X}");
                 return Ok(());
             };
 
             if let Some(stream_pair) = stream_pair {
-                endpoint.set_quic_stream(stream_pair).await?;
+                endpoint_builder.set_quic_stream(stream_pair)?;
             }
 
-            endpoint.set_client(client).await?;
+            endpoint_builder.set_client(client)?;
+
+            state.start_endpoint(endpoint_id).await?;
         }
 
         // Notify to peer that our local client is connected

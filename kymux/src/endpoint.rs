@@ -61,8 +61,7 @@ impl Task {
 }
 
 #[derive(Debug)]
-pub(crate) struct Endpoint {
-    // Description
+pub(crate) struct EndpointBuilder {
     desc: EndpointDesc,
 
     // Mux stream client
@@ -71,6 +70,80 @@ pub(crate) struct Endpoint {
 
     // Quic
     quic_stream: Option<StreamPair>,
+}
+
+impl EndpointBuilder {
+    pub(crate) fn new(desc: EndpointDesc) -> Self {
+        Self {
+            desc,
+            client: None,
+            peer_client_connected: false,
+            quic_stream: None,
+        }
+    }
+
+    pub(crate) fn desc(&self) -> &EndpointDesc {
+        &self.desc
+    }
+
+    pub(crate) fn set_client(&mut self, client: TcpStream) -> Result<()> {
+        if self.client.is_some() {
+            error!("Try to set client more than once");
+            return Err(Error::FatalError);
+        }
+
+        self.client = Some(client);
+
+        Ok(())
+    }
+
+    pub(crate) fn peer_client_connected(&mut self) -> Result<()> {
+        if self.peer_client_connected {
+            error!("Try to notify that the peer is connected more than once");
+            return Err(Error::FatalError);
+        }
+
+        self.peer_client_connected = true;
+
+        Ok(())
+    }
+
+    pub(crate) fn set_quic_stream(&mut self, quic_stream: StreamPair) -> Result<()> {
+        if self.quic_stream.is_some() {
+            error!("Try to set quic stream more than once");
+            return Err(Error::FatalError);
+        }
+
+        self.quic_stream = Some(quic_stream);
+
+        Ok(())
+    }
+
+    pub(crate) fn ready(&self) -> bool {
+        self.peer_client_connected && self.client.is_some() && self.quic_stream.is_some()
+    }
+
+    pub(crate) async fn build(mut self) -> Result<Endpoint> {
+        if !self.peer_client_connected {
+            return Err(Error::EndpointBuilderNotReady);
+        }
+
+        let Some(client) = self.client.take() else {
+            return Err(Error::EndpointBuilderNotReady);
+        };
+
+        let Some(quic_stream) = self.quic_stream.take() else {
+            return Err(Error::EndpointBuilderNotReady);
+        };
+
+        Endpoint::new(self.desc, client, quic_stream).await
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct Endpoint {
+    // Description
+    desc: EndpointDesc,
 
     // Tasks
     rx_task: Option<Task>,
@@ -82,29 +155,12 @@ impl Endpoint {
         &self.desc
     }
 
-    pub(crate) fn new(desc: EndpointDesc) -> Self {
-        Self {
-            desc,
-            client: None,
-            peer_client_connected: false,
-            quic_stream: None,
-            rx_task: None,
-            tx_task: None,
-        }
-    }
-
-    async fn start_task(&mut self) -> Result<()> {
-        if self.client.is_none() || !self.peer_client_connected || self.quic_stream.is_none() {
-            return Ok(());
-        }
-
-        debug!("Endpoint {id:X} ready: start routing", id = self.desc.id);
-
-        let mut client = self.client.take().ok_or(Error::EndpointAlreadyStarted)?;
-        let mut quic_stream = self
-            .quic_stream
-            .take()
-            .ok_or(Error::EndpointAlreadyStarted)?;
+    pub(crate) async fn new(
+        desc: EndpointDesc,
+        mut client: TcpStream,
+        mut quic_stream: StreamPair,
+    ) -> Result<Self> {
+        debug!("Endpoint {id:X} ready: start routing", id = desc.id);
 
         // Send sync notification to client
         let sync = [0u8];
@@ -113,17 +169,25 @@ impl Endpoint {
         // Forward data
         let (client_rx, client_tx) = client.into_split();
 
-        if let Some(quic_stream_rx) = quic_stream.rx.take() {
+        let rx_task = if let Some(quic_stream_rx) = quic_stream.rx.take() {
             let future = Self::rx_task(quic_stream_rx, client_tx);
-            self.rx_task = Some(Task::start("Rx task", future));
-        }
+            Some(Task::start("Rx task", future))
+        } else {
+            None
+        };
 
-        if let Some(quic_stream_tx) = quic_stream.tx.take() {
+        let tx_task = if let Some(quic_stream_tx) = quic_stream.tx.take() {
             let future = Self::tx_task(quic_stream_tx, client_rx);
-            self.tx_task = Some(Task::start("Tx task", future));
-        }
+            Some(Task::start("Tx task", future))
+        } else {
+            None
+        };
 
-        Ok(())
+        Ok(Self {
+            desc,
+            rx_task,
+            tx_task,
+        })
     }
 
     pub(crate) async fn stop_task(&mut self) -> Result<()> {
@@ -156,50 +220,5 @@ impl Endpoint {
                 id = stream_id_to_u64(quic_tx.id())
             );
         }
-    }
-
-    async fn run_task_wrapped(&mut self) -> Result<()> {
-        if let Err(err) = self.start_task().await {
-            warn!(
-                "Failed to run task for endpoint {desc:?}: {err:?}",
-                desc = self.desc
-            );
-            return Err(err);
-        };
-
-        Ok(())
-    }
-
-    pub(crate) async fn set_client(&mut self, client: TcpStream) -> Result<()> {
-        if self.client.is_some() {
-            error!("Try to set client more than once");
-            return Err(Error::FatalError);
-        }
-
-        self.client = Some(client);
-
-        self.run_task_wrapped().await
-    }
-
-    pub(crate) async fn peer_client_connected(&mut self) -> Result<()> {
-        if self.peer_client_connected {
-            error!("Try to notify that the peer is connected more than once");
-            return Err(Error::FatalError);
-        }
-
-        self.peer_client_connected = true;
-
-        self.run_task_wrapped().await
-    }
-
-    pub(crate) async fn set_quic_stream(&mut self, quic_stream: StreamPair) -> Result<()> {
-        if self.quic_stream.is_some() {
-            error!("Try to set quic stream more than once");
-            return Err(Error::FatalError);
-        }
-
-        self.quic_stream = Some(quic_stream);
-
-        self.run_task_wrapped().await
     }
 }

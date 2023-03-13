@@ -31,12 +31,12 @@ impl StreamListener {
         // received on the ControlChan yet.
         let mut state = self.state.lock().await;
 
-        let Some(endpoint) = state.endpoints.get_mut(&endpoint_id) else {
+        let Some(endpoint_builder) = state.endpoint_builders.get_mut(&endpoint_id) else {
             warn!("Peer quic stream opened but no endpoint are associated for now");
             return Ok(());
         };
 
-        let desc = endpoint.desc();
+        let desc = endpoint_builder.desc();
         debug!(
             "Registered peer endpoint 0x{id:X} stream opened",
             id = desc.id
@@ -45,7 +45,9 @@ impl StreamListener {
         assert_eq!(desc.direction, dir);
 
         let pair = StreamPair { tx, rx: Some(rx) };
-        endpoint.set_quic_stream(pair).await?;
+        endpoint_builder.set_quic_stream(pair)?;
+
+        state.start_endpoint(endpoint_id).await?;
 
         Ok(())
     }

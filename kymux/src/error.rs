@@ -42,6 +42,11 @@ pub enum Error {
     #[error("Invalid Control message")]
     InvalidControlMsg,
 
+    #[error("Endpoint not ready to start")]
+    EndpointBuilderNotReady,
+
+    #[error("Endpoint {id:X} is unknown")]
+    EndpointUnknown { id: u64 },
     #[error("Endpoint creation has failed: {source:?}")]
     EndpointCreateFailed { source: io::Error },
     #[error("Endpoint connect has failed")]

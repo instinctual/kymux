@@ -23,7 +23,7 @@ pub use stream::{StreamDirection, StreamOwner, StreamType};
 
 use client_listener::ClientListener;
 use control::{ControlMsg, ControlTask};
-use endpoint::Endpoint;
+use endpoint::{Endpoint, EndpointBuilder};
 use stream::StreamPair;
 use stream_listener::StreamListener;
 
@@ -80,6 +80,7 @@ impl ClientConfig {
 }
 
 pub(crate) struct State {
+    endpoint_builders: HashMap<u64, EndpointBuilder>,
     endpoints: HashMap<u64, Endpoint>,
     pending_endpoints: HashMap<u64, oneshot::Sender<()>>,
 }
@@ -87,9 +88,26 @@ pub(crate) struct State {
 impl State {
     fn new() -> Self {
         Self {
+            endpoint_builders: HashMap::new(),
             endpoints: HashMap::new(),
             pending_endpoints: HashMap::new(),
         }
+    }
+
+    pub(crate) async fn start_endpoint(&mut self, endpoint_id: u64) -> Result<()> {
+        let Some(builder) = self.endpoint_builders.get(&endpoint_id) else {
+            warn!("Trying to start unknown endoint {endpoint_id:X}");
+            return Err(Error::EndpointUnknown { id: endpoint_id });
+        };
+
+        if !builder.ready() {
+            return Ok(());
+        }
+
+        let builder = self.endpoint_builders.remove(&endpoint_id).unwrap();
+        self.endpoints.insert(endpoint_id, builder.build().await?);
+
+        Ok(())
     }
 }
 
@@ -386,7 +404,7 @@ impl Connection {
             direction,
         };
 
-        let endpoint = Endpoint::new(desc);
+        let endpoint_builder = EndpointBuilder::new(desc);
 
         {
             let mut state = self.state.lock().await;
@@ -411,7 +429,7 @@ impl Connection {
         // Store endpoint
         {
             let mut state = self.state.lock().await;
-            let ret = state.endpoints.insert(id, endpoint);
+            let ret = state.endpoint_builders.insert(id, endpoint_builder);
             if ret.is_some() {
                 error!("Trying to register endpoint {id:X} twice");
                 return Err(Error::FatalError);
