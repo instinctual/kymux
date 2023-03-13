@@ -21,10 +21,6 @@ pub(crate) enum ControlMsg {
     EndpointRegistered {
         endpoint_id: u64,
     },
-    StreamOpened {
-        endpoint_id: u64,
-        stream_id: u64,
-    },
     ClientConnected {
         endpoint_id: u64,
     },
@@ -140,31 +136,6 @@ impl ControlTask {
                 };
 
                 tx.send(()).map_err(|_| Error::ChannelClosed)?;
-            }
-            ControlMsg::StreamOpened {
-                endpoint_id,
-                stream_id,
-            } => {
-                let mut state = state.lock().await;
-
-                // Remove pending stream as soon as possible to avoid to have
-                // dangling streams in case of error.
-                let stream = state.pending_streams.remove(&stream_id);
-
-                let Some(endpoint) = state.endpoints.get_mut(&endpoint_id) else {
-                    error!("Got StreamOpened for unknown stream {endpoint_id:X}");
-                    return Err(Error::InvalidControlMsg);
-                };
-
-                if endpoint.desc().owner != StreamOwner::Peer {
-                    error!("StreamOpened can only been received for Peer streams");
-                    return Err(Error::InvalidControlMsg);
-                }
-
-                if let Some(stream) = stream {
-                    debug!("Stream {endpoint_id:X}: Plugging existing Quic stream {stream_id}");
-                    endpoint.set_quic_stream(stream).await?;
-                }
             }
             ControlMsg::ClientConnected { endpoint_id } => {
                 let mut state = state.lock().await;

@@ -7,8 +7,6 @@ use crate::io_utils;
 use crate::stream::stream_id_to_u64;
 use crate::{Error, Result, State, StreamDirection, StreamOwner, StreamPair};
 
-const STREAM_HELLO_MSG: u8 = 0;
-
 pub(crate) struct StreamListener {
     conn: quinn::Connection,
     state: Arc<Mutex<State>>,
@@ -23,11 +21,7 @@ impl StreamListener {
     ) -> Result<()> {
         // Consume the hello message sent by the peer to allow us to detect
         // the stream creation
-        let hello: u8 = io_utils::read_msg(&mut rx).await?;
-        if hello != STREAM_HELLO_MSG {
-            debug!("Expected Hello. Kick client");
-            return Ok(());
-        }
+        let endpoint_id: u64 = u64::from_be(io_utils::read_msg(&mut rx).await?);
 
         let stream_id = stream_id_to_u64(rx.id());
         debug!("Accepted {dir:?} stream {stream_id}");
@@ -37,35 +31,21 @@ impl StreamListener {
         // received on the ControlChan yet.
         let mut state = self.state.lock().await;
 
-        let endpoint = state.endpoints.iter_mut().find_map(|(_, endpoint)| {
-            // Only consider endpoints with an opened stream
-            let Some(quic_id) = endpoint.stream_id() else {
-                return None;
-            };
+        let Some(endpoint) = state.endpoints.get_mut(&endpoint_id) else {
+            warn!("Peer quic stream opened but no endpoint are associated for now");
+            return Ok(());
+        };
 
-            if quic_id == stream_id {
-                Some(endpoint)
-            } else {
-                None
-            }
-        });
+        let desc = endpoint.desc();
+        debug!(
+            "Registered peer endpoint 0x{id:X} stream opened",
+            id = desc.id
+        );
+        assert_eq!(desc.owner, StreamOwner::Peer);
+        assert_eq!(desc.direction, dir);
 
         let pair = StreamPair { tx, rx: Some(rx) };
-
-        if let Some(endpoint) = endpoint {
-            let desc = endpoint.desc();
-            debug!(
-                "Registered peer endpoint 0x{id:X} stream opened",
-                id = desc.id
-            );
-            assert_eq!(desc.owner, StreamOwner::Peer);
-            assert_eq!(desc.direction, dir);
-
-            endpoint.set_quic_stream(pair).await?;
-        } else {
-            debug!("Peer quic stream opened but no endpoint are associated for now");
-            state.pending_streams.insert(stream_id, pair);
-        }
+        endpoint.set_quic_stream(pair).await?;
 
         Ok(())
     }

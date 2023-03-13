@@ -10,11 +10,8 @@ use tokio::{
 
 use crate::control::ControlMsg;
 use crate::io_utils;
-use crate::stream::stream_id_to_u64;
 use crate::{Error, Result};
 use crate::{State, StreamDirection, StreamOwner, StreamPair};
-
-const CLIENT_HELLO_MSG: u8 = 0;
 
 pub(crate) struct ClientListener {
     conn: quinn::Connection,
@@ -97,19 +94,10 @@ impl ClientListener {
             };
 
             // Send a message to allow peer to get notified of stream creation
-            io_utils::write_msg(&mut tx, CLIENT_HELLO_MSG).await?;
+            let endpoint_id_ne = endpoint_id.to_be();
+            io_utils::write_msg(&mut tx, endpoint_id_ne).await?;
 
-            let stream_id = stream_id_to_u64(tx.id());
             stream_pair = Some(StreamPair { tx: Some(tx), rx });
-
-            // Notify that stream is opened
-            self.ctrlchan_tx
-                .send(ControlMsg::StreamOpened {
-                    endpoint_id,
-                    stream_id,
-                })
-                .await
-                .map_err(|_| Error::ChannelClosed)?;
         }
 
         {

@@ -82,7 +82,6 @@ impl ClientConfig {
 pub(crate) struct State {
     endpoints: HashMap<u64, Endpoint>,
     pending_endpoints: HashMap<u64, oneshot::Sender<()>>,
-    pending_streams: HashMap<u64, StreamPair>,
 }
 
 impl State {
@@ -90,7 +89,6 @@ impl State {
         Self {
             endpoints: HashMap::new(),
             pending_endpoints: HashMap::new(),
-            pending_streams: HashMap::new(),
         }
     }
 }

@@ -82,14 +82,6 @@ impl Endpoint {
         &self.desc
     }
 
-    pub(crate) fn stream_id(&self) -> Option<u64> {
-        if let Some(quick_stream) = &self.quic_stream {
-            quick_stream.tx.as_ref().map(|tx| stream_id_to_u64(tx.id()))
-        } else {
-            None
-        }
-    }
-
     pub(crate) fn new(desc: EndpointDesc) -> Self {
         Self {
             desc,
