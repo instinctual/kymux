@@ -161,14 +161,6 @@ impl ControlTask {
                     return Err(Error::InvalidControlMsg);
                 }
 
-                if endpoint.stream_id().is_some() {
-                    error!("Quick stream id for stream {endpoint_id:X} is already known");
-                    return Err(Error::InvalidControlMsg);
-                }
-
-                debug!("Endpoint {endpoint_id:X} opened. Stream id: {stream_id}");
-                endpoint.set_stream_id(stream_id).await?;
-
                 if let Some(stream) = stream {
                     debug!("Stream {endpoint_id:X}: Plugging existing Quic stream {stream_id}");
                     endpoint.set_quic_stream(stream).await?;

@@ -70,7 +70,6 @@ pub(crate) struct Endpoint {
     peer_client_connected: bool,
 
     // Quic
-    stream_id: Option<u64>,
     quic_stream: Option<StreamPair>,
 
     // Tasks
@@ -84,7 +83,11 @@ impl Endpoint {
     }
 
     pub(crate) fn stream_id(&self) -> Option<u64> {
-        self.stream_id
+        if let Some(quick_stream) = &self.quic_stream {
+            quick_stream.tx.as_ref().map(|tx| stream_id_to_u64(tx.id()))
+        } else {
+            None
+        }
     }
 
     pub(crate) fn new(desc: EndpointDesc) -> Self {
@@ -92,7 +95,6 @@ impl Endpoint {
             desc,
             client: None,
             peer_client_connected: false,
-            stream_id: None,
             quic_stream: None,
             rx_task: None,
             tx_task: None,
@@ -111,7 +113,6 @@ impl Endpoint {
             .quic_stream
             .take()
             .ok_or(Error::EndpointAlreadyStarted)?;
-        self.stream_id = None;
 
         // Send sync notification to client
         let sync = [0u8];
@@ -197,17 +198,6 @@ impl Endpoint {
         self.peer_client_connected = true;
 
         self.run_task_wrapped().await
-    }
-
-    pub(crate) async fn set_stream_id(&mut self, stream_id: u64) -> Result<()> {
-        if self.stream_id.is_some() {
-            error!("Try to set stream id more than once");
-            return Err(Error::FatalError);
-        }
-
-        self.stream_id = Some(stream_id);
-
-        Ok(())
     }
 
     pub(crate) async fn set_quic_stream(&mut self, quic_stream: StreamPair) -> Result<()> {
