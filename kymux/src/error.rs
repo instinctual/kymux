@@ -64,6 +64,20 @@ pub enum Error {
     #[error("Fail to listen for local clients")]
     EndpointClientListenFailed,
 
+    #[error("KyChannel already registered {endpoint_id:X}")]
+    KyChannelAlreadyRegistered { endpoint_id: u64 },
+    #[error("KyChannel unknown id {endpoint_id:X}")]
+    KyChannelUnknownId { endpoint_id: u64 },
+    #[error("KyChannel connection error: {source:?}")]
+    KyChannelConnectionError {
+        #[from]
+        source: quinn::ConnectionError,
+    },
+    #[error("Kymux send error: {0}")]
+    KyChannelSendError(String),
+    #[error("Kymux recv error: {0}")]
+    KyChannelRecvError(String),
+
     #[error("A fatal error has occured")]
     FatalError,
 }
