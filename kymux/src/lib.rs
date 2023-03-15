@@ -16,7 +16,6 @@ mod error;
 mod io_utils;
 mod router;
 mod stream;
-mod stream_listener;
 
 pub use endpoint::EndpointDesc;
 pub use error::{Error, Result};
@@ -25,8 +24,7 @@ pub use stream::{StreamDirection, StreamOwner, StreamType};
 use client_listener::ClientListener;
 use control::{ControlMsg, ControlTask};
 use endpoint::{Endpoint, EndpointBuilder};
-use stream::StreamPair;
-use stream_listener::StreamListener;
+use router::Router;
 
 const KYMUX_LOCAL_CLIENTS_PORT: u16 = 9090;
 
@@ -250,18 +248,19 @@ impl Connection {
             msg_rx,
         );
 
+        let mut router = Router::new(conn.clone());
+        router.start();
+        let router = Arc::new(router);
+
         // Listen for local clients
         let (mut client_listener, client_listening_addr) = ClientListener::new(
-            conn.clone(),
+            router.clone(),
             state.clone(),
             msg_tx.clone(),
             client_listener_port,
         )
         .await
         .ok_or(Error::EndpointClientListenFailed)?;
-
-        // Listen for new streams
-        let stream_listener = StreamListener::new(conn.clone(), state.clone());
 
         // Run all tasks concurrently. Each task's run() is expected to end only if something
         // wrong has happened.
@@ -277,9 +276,6 @@ impl Connection {
                 }
                 ret = client_listener.run() => {
                     debug!("ClientListener task completed: {ret:?}");
-                }
-                ret = stream_listener.run() => {
-                    debug!("StreamListener task completed: {ret:?}");
                 }
             }
 

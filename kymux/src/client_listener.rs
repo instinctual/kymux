@@ -9,12 +9,11 @@ use tokio::{
 };
 
 use crate::control::ControlMsg;
-use crate::io_utils;
 use crate::{Error, Result};
-use crate::{State, StreamDirection, StreamOwner, StreamPair};
+use crate::{Router, State};
 
 pub(crate) struct ClientListener {
-    conn: quinn::Connection,
+    router: Arc<Router>,
     state: Arc<Mutex<State>>,
     listener: TcpListener,
     ctrlchan_tx: mpsc::Sender<ControlMsg>,
@@ -22,7 +21,7 @@ pub(crate) struct ClientListener {
 
 impl ClientListener {
     pub(crate) async fn new(
-        conn: quinn::Connection,
+        router: Arc<Router>,
         state: Arc<Mutex<State>>,
         ctrlchan_tx: mpsc::Sender<ControlMsg>,
         port: u16,
@@ -40,7 +39,7 @@ impl ClientListener {
 
         Some((
             Self {
-                conn,
+                router,
                 state,
                 listener,
                 ctrlchan_tx,
@@ -56,50 +55,6 @@ impl ClientListener {
 
         let endpoint_id = u64::from_be_bytes(b);
 
-        // Get endpoint desc. Release the lock because some blocking
-        // operation will be done later.
-        let endpoint_desc = {
-            let mut state = self.state.lock().await;
-            let Some(endpoint_builder) = state.endpoint_builders.get_mut(&endpoint_id) else {
-                warn!("Received connection to unknown stream {endpoint_id:X}");
-                return Ok(());
-            };
-
-            *endpoint_builder.desc()
-        };
-
-        // Open Quic stream if required
-        let mut stream_pair = None;
-
-        if endpoint_desc.owner == StreamOwner::Local {
-            let (mut tx, rx) = match endpoint_desc.direction {
-                StreamDirection::Bi => match self.conn.open_bi().await {
-                    Ok((tx, rx)) => (tx, Some(rx)),
-                    Err(err) => {
-                        warn!("Failed to open {endpoint_desc:?} stream: {err:?}");
-                        return Err(Error::StreamOpenFailed {
-                            desc: endpoint_desc,
-                        });
-                    }
-                },
-                StreamDirection::Uni => match self.conn.open_uni().await {
-                    Ok(tx) => (tx, None),
-                    Err(err) => {
-                        warn!("Failed to open {endpoint_desc:?} stream: {err:?}");
-                        return Err(Error::StreamOpenFailed {
-                            desc: endpoint_desc,
-                        });
-                    }
-                },
-            };
-
-            // Send a message to allow peer to get notified of stream creation
-            let endpoint_id_ne = endpoint_id.to_be();
-            io_utils::write_msg(&mut tx, endpoint_id_ne).await?;
-
-            stream_pair = Some(StreamPair { tx: Some(tx), rx });
-        }
-
         {
             // Update endpoint
             let mut state = self.state.lock().await;
@@ -108,13 +63,10 @@ impl ClientListener {
                 return Ok(());
             };
 
-            if let Some(stream_pair) = stream_pair {
-                endpoint_builder.set_quic_stream(stream_pair)?;
-            }
-
             endpoint_builder.set_client(client)?;
 
-            state.start_endpoint(endpoint_id).await?;
+            let ky_channel = self.router.register(endpoint_id).await?;
+            endpoint_builder.set_ky_channel(ky_channel)?;
         }
 
         // Notify to peer that our local client is connected
@@ -124,6 +76,15 @@ impl ClientListener {
             .send(ControlMsg::ClientConnected { endpoint_id })
             .await
             .map_err(|_| Error::ChannelClosed)?;
+
+        {
+            // Must be called after ClientConnected is sent to avoid a deadlock:
+            // - start_endpoint() waits on ky_channel.recv();
+            // - on the other size, open_uni() will be called only after
+            //   ClientConnected is received.
+            let mut state = self.state.lock().await;
+            state.start_endpoint(endpoint_id).await?;
+        }
 
         Ok(())
     }

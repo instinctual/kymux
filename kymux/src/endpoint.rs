@@ -1,14 +1,17 @@
 use core::future::Future;
 
-use log::{debug, error, warn};
+#[allow(unused_imports)]
+use log::{debug, error, info, warn};
+
 use tokio::io::AsyncWriteExt;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::oneshot;
 use tokio::task::{self, JoinHandle};
 
+use crate::router::{KyChannel, KyRecvMsg};
 use crate::stream::stream_id_to_u64;
-use crate::{Error, Result, StreamDirection, StreamOwner, StreamPair, StreamType};
+use crate::{Error, Result, StreamDirection, StreamOwner, StreamType};
 
 #[derive(Clone, Copy, Debug)]
 pub struct EndpointDesc {
@@ -69,7 +72,7 @@ pub(crate) struct EndpointBuilder {
     peer_client_connected: bool,
 
     // Quic
-    quic_stream: Option<StreamPair>,
+    ky_channel: Option<KyChannel>,
 }
 
 impl EndpointBuilder {
@@ -78,12 +81,8 @@ impl EndpointBuilder {
             desc,
             client: None,
             peer_client_connected: false,
-            quic_stream: None,
+            ky_channel: None,
         }
-    }
-
-    pub(crate) fn desc(&self) -> &EndpointDesc {
-        &self.desc
     }
 
     pub(crate) fn set_client(&mut self, client: TcpStream) -> Result<()> {
@@ -108,19 +107,19 @@ impl EndpointBuilder {
         Ok(())
     }
 
-    pub(crate) fn set_quic_stream(&mut self, quic_stream: StreamPair) -> Result<()> {
-        if self.quic_stream.is_some() {
-            error!("Try to set quic stream more than once");
+    pub(crate) fn set_ky_channel(&mut self, ky_channel: KyChannel) -> Result<()> {
+        if self.ky_channel.is_some() {
+            error!("Try to set ky_channel more than once");
             return Err(Error::FatalError);
         }
 
-        self.quic_stream = Some(quic_stream);
+        self.ky_channel = Some(ky_channel);
 
         Ok(())
     }
 
     pub(crate) fn ready(&self) -> bool {
-        self.peer_client_connected && self.client.is_some() && self.quic_stream.is_some()
+        self.peer_client_connected && self.client.is_some() && self.ky_channel.is_some()
     }
 
     pub(crate) async fn build(mut self) -> Result<Endpoint> {
@@ -132,11 +131,11 @@ impl EndpointBuilder {
             return Err(Error::EndpointBuilderNotReady);
         };
 
-        let Some(quic_stream) = self.quic_stream.take() else {
+        let Some(ky_channel) = self.ky_channel.take() else {
             return Err(Error::EndpointBuilderNotReady);
         };
 
-        Endpoint::new(self.desc, client, quic_stream).await
+        Endpoint::new(self.desc, client, ky_channel).await
     }
 }
 
@@ -158,7 +157,7 @@ impl Endpoint {
     pub(crate) async fn new(
         desc: EndpointDesc,
         mut client: TcpStream,
-        quic_stream: StreamPair,
+        mut ky_channel: KyChannel,
     ) -> Result<Self> {
         debug!("Endpoint {id:X} ready: start routing", id = desc.id);
 
@@ -169,12 +168,33 @@ impl Endpoint {
         // Forward data
         let (client_rx, client_tx) = client.into_split();
 
-        let rx_task = quic_stream.rx.map(|rx| {
+        let (quic_stream_tx, quic_stream_rx) = match (desc.owner, desc.direction) {
+            (StreamOwner::Local, StreamDirection::Bi) => {
+                let (tx, rx) = ky_channel.open_bi().await?;
+                (Some(tx), Some(rx))
+            }
+            (StreamOwner::Local, StreamDirection::Uni) => {
+                let tx = ky_channel.open_uni().await?;
+                (Some(tx), None)
+            }
+            (StreamOwner::Peer, direction) => match ky_channel.recv().await? {
+                KyRecvMsg::AcceptUni(rx) => {
+                    assert!(direction == StreamDirection::Uni);
+                    (None, Some(rx))
+                }
+                KyRecvMsg::AcceptBi(tx, rx) => {
+                    assert!(direction == StreamDirection::Bi);
+                    (Some(tx), Some(rx))
+                }
+            },
+        };
+
+        let rx_task = quic_stream_rx.map(|rx| {
             let future = Self::rx_task(rx, client_tx);
             Task::start("Rx task", future)
         });
 
-        let tx_task = quic_stream.tx.map(|tx| {
+        let tx_task = quic_stream_tx.map(|tx| {
             let future = Self::tx_task(tx, client_rx);
             Task::start("Tx task", future)
         });
