@@ -158,7 +158,7 @@ impl Endpoint {
     pub(crate) async fn new(
         desc: EndpointDesc,
         mut client: TcpStream,
-        mut quic_stream: StreamPair,
+        quic_stream: StreamPair,
     ) -> Result<Self> {
         debug!("Endpoint {id:X} ready: start routing", id = desc.id);
 
@@ -169,19 +169,15 @@ impl Endpoint {
         // Forward data
         let (client_rx, client_tx) = client.into_split();
 
-        let rx_task = if let Some(quic_stream_rx) = quic_stream.rx.take() {
-            let future = Self::rx_task(quic_stream_rx, client_tx);
-            Some(Task::start("Rx task", future))
-        } else {
-            None
-        };
+        let rx_task = quic_stream.rx.map(|rx| {
+            let future = Self::rx_task(rx, client_tx);
+            Task::start("Rx task", future)
+        });
 
-        let tx_task = if let Some(quic_stream_tx) = quic_stream.tx.take() {
-            let future = Self::tx_task(quic_stream_tx, client_rx);
-            Some(Task::start("Tx task", future))
-        } else {
-            None
-        };
+        let tx_task = quic_stream.tx.map(|tx| {
+            let future = Self::tx_task(tx, client_rx);
+            Task::start("Tx task", future)
+        });
 
         Ok(Self {
             desc,
