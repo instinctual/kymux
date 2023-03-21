@@ -1,13 +1,9 @@
-use core::future::Future;
-
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 
 use tokio::io::AsyncWriteExt;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::oneshot;
-use tokio::task::{self, JoinHandle};
 
 use crate::router::{KyChannel, KyRecvMsg};
 use crate::stream::stream_id_to_u64;
@@ -19,48 +15,6 @@ pub struct EndpointDesc {
     pub owner: StreamOwner,
     pub type_: StreamType,
     pub direction: StreamDirection,
-}
-
-#[derive(Debug)]
-struct Task {
-    name: &'static str,
-    stop_tx: oneshot::Sender<()>,
-    handle: JoinHandle<()>,
-}
-
-impl Task {
-    fn start<F>(name: &'static str, future: F) -> Self
-    where
-        F: Future<Output = ()> + Send + 'static,
-    {
-        let (stop_tx, stop_rx) = oneshot::channel();
-
-        let handle = task::spawn(async move {
-            tokio::select! {
-                _ = stop_rx => {}
-                _ = future => {}
-            }
-        });
-
-        Self {
-            name,
-            stop_tx,
-            handle,
-        }
-    }
-
-    pub(crate) async fn stop(self) {
-        let ret = self.stop_tx.send(());
-        if ret.is_err() {
-            // Can happen if task has stop by itself
-            debug!("Failed to send stop to task '{name}'", name = self.name);
-        }
-
-        let ret = self.handle.await;
-        if let Err(err) = ret {
-            warn!("Failed to join task '{name}': {err:?}", name = self.name);
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -143,10 +97,6 @@ impl EndpointBuilder {
 pub(crate) struct Endpoint {
     // Description
     desc: EndpointDesc,
-
-    // Tasks
-    rx_task: Option<Task>,
-    tx_task: Option<Task>,
 }
 
 impl Endpoint {
@@ -189,35 +139,21 @@ impl Endpoint {
             },
         };
 
-        let rx_task = quic_stream_rx.map(|rx| {
-            let future = Self::rx_task(rx, client_tx);
-            Task::start("Rx task", future)
-        });
+        if let Some(rx) = quic_stream_rx {
+            tokio::spawn(async move {
+                let ret = Self::rx_task(rx, client_tx).await;
+                debug!("Quic -> Client: {ret:?}");
+            });
+        };
 
-        let tx_task = quic_stream_tx.map(|tx| {
-            let future = Self::tx_task(tx, client_rx);
-            Task::start("Tx task", future)
-        });
+        if let Some(tx) = quic_stream_tx {
+            tokio::spawn(async move {
+                let ret = Self::tx_task(tx, client_rx).await;
+                debug!("Client -> Quic: {ret:?}");
+            });
+        };
 
-        Ok(Self {
-            desc,
-            rx_task,
-            tx_task,
-        })
-    }
-
-    pub(crate) async fn stop_task(&mut self) -> Result<()> {
-        if let Some(rx_task) = self.rx_task.take() {
-            rx_task.stop().await;
-            debug!("Endpoint {id:X} Rx task stopped", id = self.desc.id);
-        }
-
-        if let Some(tx_task) = self.tx_task.take() {
-            tx_task.stop().await;
-            debug!("Endpoint {id:X} Tx task stopped", id = self.desc.id);
-        }
-
-        Ok(())
+        Ok(Self { desc })
     }
 
     async fn rx_task(mut quic_rx: quinn::RecvStream, mut client_tx: OwnedWriteHalf) {

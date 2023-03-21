@@ -378,19 +378,12 @@ impl Connection {
 
         // Stop endpoints
         {
-            let endpoints: Vec<_> = {
+            let _endpoints: Vec<_> = {
                 let mut state = self.state.lock().await;
                 state.endpoints.drain().map(|(_, v)| v).collect()
             };
 
-            for mut endpoint in endpoints {
-                debug!("Stop endpoint {id:X}", id = endpoint.desc().id);
-                let ret = endpoint.stop_task().await;
-                debug!(
-                    "Endpoint {id:X} stopped. ret={ret:?}",
-                    id = endpoint.desc().id
-                );
-            }
+            // TODO stop tasks explicitly?
         }
 
         Ok(())
