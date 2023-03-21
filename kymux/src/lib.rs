@@ -14,6 +14,7 @@ mod control;
 mod endpoint;
 mod error;
 mod io_utils;
+mod protocol;
 mod router;
 mod stream;
 

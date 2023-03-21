@@ -76,6 +76,9 @@ pub enum Error {
     #[error("Kymux recv error: {0}")]
     KyChannelRecvError(String),
 
+    #[error("Kymux protocol error: {0}")]
+    KymuxProtocolError(String),
+
     #[error("A fatal error has occured")]
     FatalError,
 }
