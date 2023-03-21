@@ -2,7 +2,7 @@ use std::io;
 
 use thiserror::Error;
 
-use crate::{EndpointDesc, StreamDirection};
+use crate::EndpointDesc;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -32,8 +32,6 @@ pub enum Error {
     TcpLocalAddrFetchFailed { source: io::Error },
     #[error("Failed to connect to endpoint {desc:?}")]
     StreamOpenFailed { desc: EndpointDesc },
-    #[error("Failed to accept {dir:?} stream")]
-    StreamAcceptFailed { dir: StreamDirection },
     #[error("Mpsc channel closed")]
     ChannelClosed,
     #[error("Endpoint already started")]

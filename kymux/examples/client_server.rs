@@ -76,7 +76,7 @@ async fn main() {
     println!("Connected");
 
     let endpoint = server
-        .register_endpoint(kymux::StreamType::Input, kymux::StreamDirection::Bi)
+        .register_endpoint(kymux::StreamType::Input)
         .await
         .unwrap();
     println!("Endpoint {endpoint:X} registered");
@@ -95,7 +95,7 @@ async fn main() {
     let server_addr_endpoint1 = server.get_uri_for_endpoint(endpoint).unwrap();
 
     let endpoint2 = server
-        .register_endpoint(kymux::StreamType::Input, kymux::StreamDirection::Bi)
+        .register_endpoint(kymux::StreamType::Input)
         .await
         .unwrap();
 
@@ -162,7 +162,7 @@ async fn main() {
 
     // Endpoint 3
     let endpoint3 = server
-        .register_endpoint(kymux::StreamType::Input, kymux::StreamDirection::Bi)
+        .register_endpoint(kymux::StreamType::Input)
         .await
         .unwrap();
 

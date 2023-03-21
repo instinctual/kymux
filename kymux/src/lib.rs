@@ -19,7 +19,7 @@ mod stream;
 
 pub use endpoint::EndpointDesc;
 pub use error::{Error, Result};
-pub use stream::{StreamDirection, StreamOwner, StreamType};
+pub use stream::{StreamOwner, StreamType};
 
 use client_listener::ClientListener;
 use control::{ControlMsg, ControlTask};
@@ -389,11 +389,7 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn register_endpoint(
-        &mut self,
-        type_: StreamType,
-        direction: StreamDirection,
-    ) -> Result<u64> {
+    pub async fn register_endpoint(&mut self, type_: StreamType) -> Result<u64> {
         let (register_tx, register_rx) = oneshot::channel();
         let id: u64 = rand::random();
 
@@ -402,7 +398,6 @@ impl Connection {
             id,
             owner: StreamOwner::Local,
             type_,
-            direction,
         };
 
         let endpoint_builder = EndpointBuilder::new(desc);
@@ -417,7 +412,6 @@ impl Connection {
             .send(ControlMsg::RegisterEndpoint {
                 id,
                 type_: desc.type_,
-                dir: desc.direction,
             })
             .await
             .map_err(|_| Error::EndpointStopped)?;

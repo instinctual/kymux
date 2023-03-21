@@ -6,24 +6,16 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{mpsc, Mutex};
 
 use crate::io_utils;
-use crate::{EndpointBuilder, EndpointDesc, State, StreamDirection, StreamOwner, StreamType};
+use crate::{EndpointBuilder, EndpointDesc, State, StreamOwner, StreamType};
 use crate::{Error, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ControlMsg {
     Authenticate,
     ConnectionAccepted,
-    RegisterEndpoint {
-        id: u64,
-        type_: StreamType,
-        dir: StreamDirection,
-    },
-    EndpointRegistered {
-        endpoint_id: u64,
-    },
-    ClientConnected {
-        endpoint_id: u64,
-    },
+    RegisterEndpoint { id: u64, type_: StreamType },
+    EndpointRegistered { endpoint_id: u64 },
+    ClientConnected { endpoint_id: u64 },
 }
 
 pub(crate) struct ControlTask {
@@ -98,16 +90,11 @@ impl ControlTask {
                 error!("{msg:?} received after connection handshake");
                 return Err(Error::InvalidControlMsg);
             }
-            ControlMsg::RegisterEndpoint {
-                id,
-                type_,
-                dir: direction,
-            } => {
+            ControlMsg::RegisterEndpoint { id, type_ } => {
                 let endpoint_builder = EndpointBuilder::new(EndpointDesc {
                     id,
                     owner: StreamOwner::Peer,
                     type_,
-                    direction,
                 });
 
                 {
@@ -115,7 +102,7 @@ impl ControlTask {
                     state.endpoint_builders.insert(id, endpoint_builder);
                 }
 
-                debug!("Received register endpoint {id:X}, {direction:?}: Done");
+                debug!("Received register endpoint {id:X}: Done");
                 channel_tx
                     .send(ControlMsg::EndpointRegistered { endpoint_id: id })
                     .await

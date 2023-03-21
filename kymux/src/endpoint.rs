@@ -7,14 +7,13 @@ use tokio::net::TcpStream;
 
 use crate::router::{KyChannel, KyRecvMsg};
 use crate::stream::stream_id_to_u64;
-use crate::{Error, Result, StreamDirection, StreamOwner, StreamType};
+use crate::{Error, Result, StreamOwner, StreamType};
 
 #[derive(Clone, Copy, Debug)]
 pub struct EndpointDesc {
     pub id: u64,
     pub owner: StreamOwner,
     pub type_: StreamType,
-    pub direction: StreamDirection,
 }
 
 #[derive(Debug)]
@@ -118,22 +117,23 @@ impl Endpoint {
         // Forward data
         let (client_rx, client_tx) = client.into_split();
 
-        let (quic_stream_tx, quic_stream_rx) = match (desc.owner, desc.direction) {
-            (StreamOwner::Local, StreamDirection::Bi) => {
+        let bidir = desc.type_ == StreamType::Input;
+        let (quic_stream_tx, quic_stream_rx) = match (desc.owner, bidir) {
+            (StreamOwner::Local, true) => {
                 let (tx, rx) = ky_channel.open_bi().await?;
                 (Some(tx), Some(rx))
             }
-            (StreamOwner::Local, StreamDirection::Uni) => {
+            (StreamOwner::Local, false) => {
                 let tx = ky_channel.open_uni().await?;
                 (Some(tx), None)
             }
-            (StreamOwner::Peer, direction) => match ky_channel.recv().await? {
+            (StreamOwner::Peer, bidir) => match ky_channel.recv().await? {
                 KyRecvMsg::AcceptUni(rx) => {
-                    assert!(direction == StreamDirection::Uni);
+                    assert!(!bidir);
                     (None, Some(rx))
                 }
                 KyRecvMsg::AcceptBi(tx, rx) => {
-                    assert!(direction == StreamDirection::Bi);
+                    assert!(bidir);
                     (Some(tx), Some(rx))
                 }
             },

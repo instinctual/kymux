@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
-use kymux::{StreamDirection, StreamType};
+use kymux::StreamType;
 
 const SERVER_NAME: &str = "kymux_test";
 const PORT: u16 = 10000;
@@ -192,7 +192,6 @@ enum TestStep {
         endpoint_creator: Actor,
         producer: Actor,
         stream_type: StreamType,
-        stream_dir: StreamDirection,
         // Producer configuration
         block_size: usize,
         generate_size: usize,
@@ -226,7 +225,6 @@ async fn stress_test() {
             endpoint_creator: Actor::Server,
             producer: Actor::Server,
             stream_type: StreamType::Input,
-            stream_dir: StreamDirection::Bi,
             block_size: 512,
             generate_size: 1024 * 2000,
             write_delay: Some(Duration::from_millis(5)),
@@ -237,7 +235,6 @@ async fn stress_test() {
             endpoint_creator: Actor::Server,
             producer: Actor::Server,
             stream_type: StreamType::Input,
-            stream_dir: StreamDirection::Bi,
             block_size: 1024,
             generate_size: 1024 * 1024 * 50,
             write_delay: None,
@@ -247,7 +244,6 @@ async fn stress_test() {
             endpoint_creator: Actor::Server,
             producer: Actor::Client,
             stream_type: StreamType::Input,
-            stream_dir: StreamDirection::Bi,
             block_size: 1024,
             generate_size: 1024 * 1024 * 50,
             write_delay: None,
@@ -257,7 +253,6 @@ async fn stress_test() {
             endpoint_creator: Actor::Client,
             producer: Actor::Client,
             stream_type: StreamType::Input,
-            stream_dir: StreamDirection::Bi,
             block_size: 1024,
             generate_size: 1024 * 1024 * 50,
             write_delay: None,
@@ -267,7 +262,6 @@ async fn stress_test() {
             endpoint_creator: Actor::Client,
             producer: Actor::Server,
             stream_type: StreamType::Input,
-            stream_dir: StreamDirection::Bi,
             block_size: 1024,
             generate_size: 1024 * 1024 * 50,
             write_delay: None,
@@ -281,7 +275,6 @@ async fn stress_test() {
             endpoint_creator: Actor::Client,
             producer: Actor::Client,
             stream_type: StreamType::Input,
-            stream_dir: StreamDirection::Bi,
             block_size: 128,
             generate_size: 128 * 40,
             write_delay: Some(Duration::from_millis(50)),
@@ -294,7 +287,6 @@ async fn stress_test() {
             endpoint_creator: Actor::Client,
             producer: Actor::Server,
             stream_type: StreamType::Input,
-            stream_dir: StreamDirection::Bi,
             block_size: 128,
             generate_size: 128 * 40,
             write_delay: None,
@@ -308,7 +300,6 @@ async fn stress_test() {
                 endpoint_creator,
                 producer,
                 stream_type,
-                stream_dir,
                 block_size,
                 generate_size,
                 write_delay,
@@ -320,10 +311,7 @@ async fn stress_test() {
                     Actor::Server => &mut server,
                 };
 
-                let endpoint = connection
-                    .register_endpoint(stream_type, stream_dir)
-                    .await
-                    .unwrap();
+                let endpoint = connection.register_endpoint(stream_type).await.unwrap();
 
                 // Map the producer and the consumer to the correct actors
                 let (producer, consumer) = match producer {
@@ -370,16 +358,13 @@ async fn stress_test() {
     // Run a batch of concurrent tests
     for i in 0..50 {
         // Create the endpoint
-        let (connection, stream_type, stream_dir) = if i % 2 == 0 {
-            (&mut client, StreamType::Video, StreamDirection::Uni)
+        let (connection, stream_type) = if i % 2 == 0 {
+            (&mut client, StreamType::Video)
         } else {
-            (&mut server, StreamType::Input, StreamDirection::Bi)
+            (&mut server, StreamType::Input)
         };
 
-        let endpoint = connection
-            .register_endpoint(stream_type, stream_dir)
-            .await
-            .unwrap();
+        let endpoint = connection.register_endpoint(stream_type).await.unwrap();
 
         // Map the producer and the consumer to the correct actors
         let (producer, consumer) = if i % 2 == 0 {
