@@ -3,7 +3,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::Result;
 
-pub(crate) type SizeType = usize;
+pub(crate) type SizeType = u32;
 pub(crate) const SIZE_LEN: usize = std::mem::size_of::<SizeType>();
 
 pub(crate) async fn read_buf<T>(rx: &mut T) -> Result<Vec<u8>>
@@ -14,7 +14,7 @@ where
     rx.read_exact(&mut raw_len).await?;
 
     let len = SizeType::from_be_bytes(raw_len);
-    let mut buf: Vec<u8> = vec![0; len];
+    let mut buf: Vec<u8> = vec![0; len as usize];
     rx.read_exact(&mut buf[..]).await?;
 
     Ok(buf)
@@ -33,7 +33,7 @@ pub(crate) async fn write_buf<T>(tx: &mut T, e: Vec<u8>) -> Result<()>
 where
     T: AsyncWriteExt + Unpin,
 {
-    let len: SizeType = e.len();
+    let len: SizeType = e.len() as SizeType;
 
     tx.write_all(&len.to_be_bytes()).await?;
     tx.write_all(&e).await?;
