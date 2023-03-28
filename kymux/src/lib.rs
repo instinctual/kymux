@@ -64,10 +64,10 @@ pub struct ClientConfig {
 }
 
 impl ClientConfig {
-    pub fn new(addr: SocketAddr, roots: rustls::RootCertStore, server_name: String) -> Self {
+    pub fn new(addr: SocketAddr, roots: rustls::RootCertStore, server_name: &str) -> Self {
         Self {
             addr,
-            server_name,
+            server_name: server_name.into(),
             roots,
             client_listener_port: KYMUX_LOCAL_CLIENTS_PORT,
         }
