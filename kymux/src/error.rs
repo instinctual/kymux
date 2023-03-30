@@ -71,6 +71,11 @@ pub enum Error {
         #[from]
         source: quinn::ConnectionError,
     },
+    #[error("KyChannel write error: {source:?}")]
+    KyChannelWriteError {
+        #[from]
+        source: quinn::WriteError,
+    },
     #[error("Kymux send error: {0}")]
     KyChannelSendError(String),
     #[error("Kymux recv error: {0}")]

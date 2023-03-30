@@ -7,6 +7,8 @@ use crate::stream::stream_id_to_u64;
 use crate::{EndpointDesc, Error, Result, StreamOwner};
 use tokio::net::TcpStream;
 
+pub mod gopstream;
+
 #[async_trait]
 pub(crate) trait Protocol {
     async fn forward(&mut self, ky_channel: KyChannel, client: TcpStream) -> Result<()>;
