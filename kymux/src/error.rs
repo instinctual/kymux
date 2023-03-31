@@ -76,6 +76,11 @@ pub enum Error {
         #[from]
         source: quinn::WriteError,
     },
+    #[error("KyChannel send datagram error: {source:?}")]
+    KyChannelSendDatagramError {
+        #[from]
+        source: quinn::SendDatagramError,
+    },
     #[error("Kymux send error: {0}")]
     KyChannelSendError(String),
     #[error("Kymux recv error: {0}")]

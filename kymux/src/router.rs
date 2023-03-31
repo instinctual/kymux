@@ -10,6 +10,7 @@ use std::sync::Arc;
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 
+use bytes::{BufMut, Bytes, BytesMut};
 use quinn::{RecvStream, SendStream};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
@@ -20,6 +21,7 @@ type ClientMap = HashMap<u64, RouterClient>;
 pub enum KyRecvMsg {
     AcceptUni(RecvStream),
     AcceptBi(SendStream, RecvStream),
+    Datagram(Bytes),
 }
 
 #[derive(Debug)]
@@ -55,6 +57,14 @@ impl Router {
         tokio::spawn(async move {
             if let Err(err) = Self::accept_channels_bi(conn, clients).await {
                 error!("Accept bi failed: {err:?}");
+            }
+        });
+
+        let conn = self.conn.clone();
+        let clients = self.clients.clone();
+        tokio::spawn(async move {
+            if let Err(err) = Self::recv_channels_datagrams(conn, clients).await {
+                error!("Recv datagrams failed: {err:?}");
             }
         });
     }
@@ -131,6 +141,34 @@ impl Router {
             }
         }
     }
+
+    async fn recv_channels_datagrams(
+        conn: quinn::Connection,
+        clients: Arc<Mutex<ClientMap>>,
+    ) -> Result<()> {
+        loop {
+            let datagram = conn.read_datagram().await?;
+            if datagram.len() >= 8 {
+                let endpoint_id = u64::from_be_bytes((&datagram[..8]).try_into().unwrap());
+                let mut clients = clients.lock().await;
+                if let Some(client) = clients.get_mut(&endpoint_id) {
+                    client
+                        .tx
+                        .send(KyRecvMsg::Datagram(datagram))
+                        .await
+                        .map_err(|e| {
+                            Error::KyChannelSendError(format!("Could not send Datagram: {}", e))
+                        })?;
+                } else {
+                    // Not a hard error, datagrams may be delivered at any
+                    // time, including once the endpoint has been removed
+                    warn!("Received a datagram with an unknown id: {endpoint_id:X}");
+                }
+            } else {
+                warn!("Datagram endpoint id too short, dropping");
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -178,12 +216,37 @@ impl KyChannelSend {
         Ok((send, recv))
     }
 
+    async fn send_datagram_(conn: &quinn::Connection, data: Bytes) -> Result<()> {
+        conn.send_datagram(data)?;
+        Ok(())
+    }
+
+    fn write_datagram_header_(endpoint_id: u64, buf: &mut BytesMut) {
+        buf.put_u64(endpoint_id);
+    }
+
+    fn max_datagram_size_(conn: &quinn::Connection) -> Option<usize> {
+        conn.max_datagram_size()
+    }
+
     pub async fn open_uni(&self) -> Result<SendStream> {
         Self::open_uni_(&self.conn, self.endpoint_id).await
     }
 
     pub async fn open_bi(&self) -> Result<(SendStream, RecvStream)> {
         Self::open_bi_(&self.conn, self.endpoint_id).await
+    }
+
+    pub async fn send_datagram(&self, data: Bytes) -> Result<()> {
+        Self::send_datagram_(&self.conn, data).await
+    }
+
+    pub fn write_datagram_header(&self, buf: &mut BytesMut) {
+        Self::write_datagram_header_(self.endpoint_id, buf);
+    }
+
+    pub fn max_datagram_size(&self) -> Option<usize> {
+        Self::max_datagram_size_(&self.conn)
     }
 }
 
@@ -227,6 +290,18 @@ impl KyChannel {
 
     pub async fn recv(&mut self) -> Result<KyRecvMsg> {
         KyChannelRecv::recv_(&mut self.rx).await
+    }
+
+    pub async fn send_datagram(&self, data: Bytes) -> Result<()> {
+        KyChannelSend::send_datagram_(&self.conn, data).await
+    }
+
+    pub fn write_datagram_header(&self, buf: &mut BytesMut) {
+        KyChannelSend::write_datagram_header_(self.endpoint_id, buf);
+    }
+
+    pub fn max_datagram_size(&self) -> Option<usize> {
+        KyChannelSend::max_datagram_size_(&self.conn)
     }
 
     pub fn into_split(self) -> (KyChannelRecv, KyChannelSend) {
