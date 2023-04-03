@@ -10,6 +10,7 @@ use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
 pub mod gopstream;
+pub mod safe_unreliable;
 mod seq;
 
 #[async_trait]
