@@ -5,6 +5,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use crate::router::{KyChannel, KyRecvMsg};
 use crate::stream::stream_id_to_u64;
 use crate::{EndpointDesc, Error, Result, StreamOwner};
+use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
 pub mod gopstream;
@@ -104,4 +105,63 @@ async fn tx_task(mut quic_tx: quinn::SendStream, mut client_rx: OwnedReadHalf) -
 
     ret?;
     Ok(())
+}
+
+#[derive(Debug)]
+pub(crate) enum Packet {
+    Codec(CodecPacket),
+    Media(MediaPacket),
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub(crate) struct CodecPacket {
+    header: Vec<u8>,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub(crate) struct MediaPacket {
+    data: Vec<u8>, // includes header and payload
+    pts: u64,
+    is_config: bool,
+    is_key: bool,
+}
+
+impl Packet {
+    pub(crate) async fn read(input: &mut (impl AsyncReadExt + Unpin)) -> Result<Packet> {
+        let mut buf = vec![0u8; 16];
+        input.read_exact(&mut buf).await?;
+        assert!(buf.len() == 16);
+
+        let stream_id = u32::from_be_bytes(buf[..4].try_into().unwrap());
+
+        let is_media_packet = buf[4] & 0x80 != 0;
+        let packet = if is_media_packet {
+            let pts_and_flags = u64::from_be_bytes(buf[4..12].try_into().unwrap());
+            let is_config = (pts_and_flags & 0x40_00_00_00_00_00_00_00) != 0;
+            let is_key = (pts_and_flags & 0x20_00_00_00_00_00_00_00) != 0;
+            let pts = pts_and_flags & 0x1F_FF_FF_FF_FF_FF_FF_FF;
+            let size = u32::from_be_bytes(buf[12..16].try_into().unwrap());
+
+            debug!(
+                "[MEDIA stream_id={}] is_config={} is_key={} pts={} size={}",
+                stream_id, is_config, is_key, pts, size
+            );
+
+            buf.resize(16 + size as usize, 0);
+            input.read_exact(&mut buf[16..]).await?;
+
+            Packet::Media(MediaPacket {
+                data: buf,
+                pts,
+                is_config,
+                is_key,
+            })
+        } else {
+            Packet::Codec(CodecPacket { header: buf })
+        };
+
+        Ok(packet)
+    }
 }

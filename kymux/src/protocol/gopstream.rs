@@ -1,4 +1,4 @@
-use crate::protocol::Protocol;
+use crate::protocol::{Packet, Protocol};
 use crate::router::{KyChannel, KyChannelRecv, KyChannelSend, KyRecvMsg};
 use crate::{EndpointDesc, Error, Result, StreamOwner};
 
@@ -12,25 +12,6 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-
-#[derive(Debug)]
-enum Packet {
-    Codec(CodecPacket),
-    Media(MediaPacket),
-}
-
-#[derive(Debug)]
-struct CodecPacket {
-    header: Vec<u8>,
-}
-
-#[derive(Debug)]
-struct MediaPacket {
-    data: Vec<u8>, // includes header and payload
-    _pts: u64,
-    is_config: bool,
-    is_key: bool,
-}
 
 #[derive(Debug)]
 enum RecvMessage {
@@ -120,7 +101,7 @@ impl GopStreamProtocol {
 
         let mut stream = ky_channel_tx.open_uni().await?;
         loop {
-            let packet = Self::read_packet(&mut client_rx).await?;
+            let packet = Packet::read(&mut client_rx).await?;
             match packet {
                 Packet::Codec(packet) => {
                     codec = (codec.0 + 1, Some(packet));
@@ -162,42 +143,6 @@ impl GopStreamProtocol {
         }
     }
 
-    async fn read_packet(input: &mut (impl AsyncReadExt + Unpin)) -> Result<Packet> {
-        let mut buf = vec![0u8; 16];
-        input.read_exact(&mut buf).await?;
-        assert!(buf.len() == 16);
-
-        let stream_id = u32::from_be_bytes(buf[..4].try_into().unwrap());
-
-        let is_media_packet = buf[4] & 0x80 != 0;
-        let packet = if is_media_packet {
-            let pts_and_flags = u64::from_be_bytes(buf[4..12].try_into().unwrap());
-            let is_config = (pts_and_flags & 0x40_00_00_00_00_00_00_00) != 0;
-            let is_key = (pts_and_flags & 0x20_00_00_00_00_00_00_00) != 0;
-            let pts = pts_and_flags & 0x1F_FF_FF_FF_FF_FF_FF_FF;
-            let size = u32::from_be_bytes(buf[12..16].try_into().unwrap());
-
-            debug!(
-                "[MEDIA stream_id={}] is_config={} is_key={} pts={} size={}",
-                stream_id, is_config, is_key, pts, size
-            );
-
-            buf.resize(16 + size as usize, 0);
-            input.read_exact(&mut buf[16..]).await?;
-
-            Packet::Media(MediaPacket {
-                data: buf,
-                _pts: pts,
-                is_config,
-                is_key,
-            })
-        } else {
-            Packet::Codec(CodecPacket { header: buf })
-        };
-
-        Ok(packet)
-    }
-
     async fn accept_unis(
         mut ky_channel_rx: KyChannelRecv,
         tx: mpsc::Sender<RecvMessage>,
@@ -228,7 +173,7 @@ impl GopStreamProtocol {
         let codec_gen = recv_stream.read_u32().await?;
         let config_gen = recv_stream.read_u32().await?;
         loop {
-            let packet = Self::read_packet(&mut recv_stream).await?;
+            let packet = Packet::read(&mut recv_stream).await?;
             tx.send(RecvMessage::NewPacket {
                 packet,
                 codec_gen,
