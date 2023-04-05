@@ -10,6 +10,7 @@ use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
 pub mod gopstream;
+mod seq;
 
 #[async_trait]
 pub(crate) trait Protocol {
