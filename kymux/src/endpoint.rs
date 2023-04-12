@@ -2,7 +2,7 @@ use log::{debug, error};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
-use crate::protocol::gopstream::GopStreamProtocol;
+use crate::protocol::safe_unreliable::SafeUnreliableProtocol;
 use crate::protocol::{Protocol, SimpleBiProtocol, SimpleUniProtocol};
 use crate::router::KyChannel;
 use crate::{Error, Result, StreamOwner, StreamType};
@@ -114,7 +114,7 @@ impl Endpoint {
 
         let mut protocol: Box<dyn Protocol + Send> = match desc.type_ {
             StreamType::Input => Box::new(SimpleBiProtocol::new(desc)),
-            StreamType::Video => Box::new(GopStreamProtocol::new(desc)),
+            StreamType::Video => Box::new(SafeUnreliableProtocol::new(desc)),
             StreamType::Audio => Box::new(SimpleUniProtocol::new(desc)),
         };
 
