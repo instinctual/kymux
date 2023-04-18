@@ -5,6 +5,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use crate::router::{KyChannel, KyRecvMsg};
 use crate::stream::stream_id_to_u64;
 use crate::{EndpointDesc, Error, Result, StreamOwner};
+use bytes::{Bytes, BytesMut};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
@@ -116,13 +117,13 @@ pub(crate) enum Packet {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub(crate) struct CodecPacket {
-    header: Vec<u8>,
+    header: Bytes,
 }
 
 #[derive(Debug)]
 #[allow(dead_code)]
 pub(crate) struct MediaPacket {
-    data: Vec<u8>, // includes header and payload
+    data: Bytes, // includes header and payload
     header: MediaPacketHeader,
 }
 
@@ -137,7 +138,8 @@ pub(crate) struct MediaPacketHeader {
 
 impl Packet {
     pub(crate) async fn read(input: &mut (impl AsyncReadExt + Unpin)) -> Result<Packet> {
-        let mut buf = vec![0u8; 16];
+        let mut buf = BytesMut::new();
+        buf.resize(16, 0);
         input.read_exact(&mut buf).await?;
         assert!(buf.len() == 16);
 
@@ -153,9 +155,14 @@ impl Packet {
             buf.resize(16 + header.size as usize, 0);
             input.read_exact(&mut buf[16..]).await?;
 
-            Packet::Media(MediaPacket { data: buf, header })
+            Packet::Media(MediaPacket {
+                data: buf.freeze(),
+                header,
+            })
         } else {
-            Packet::Codec(CodecPacket { header: buf })
+            Packet::Codec(CodecPacket {
+                header: buf.freeze(),
+            })
         };
 
         Ok(packet)
