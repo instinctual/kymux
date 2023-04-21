@@ -20,9 +20,10 @@ mod sender;
  *
  * The _sender_ receives kypackets from a client over TCP. It sends to the
  * kymux receiver the initial codec packet and all config packets (SPS/PPS)
- * over a single QUIC stream, in sequence. It splits media packets into
- * segments so that it can send datagrams having size max_datagram_size()
- * (exposed by quinn) including some additional headers.
+ * over a single QUIC stream, in sequence. It generates RaptorQ packets from
+ * media packets to add forward error correction, and send them over datagrams
+ * having size max_datagram_size() (exposed by quinn) including some additional
+ * headers.
  *
  * The _receiver_ listens for 3 events:
  *  - accept a QUIC uni-stream
@@ -30,11 +31,11 @@ mod sender;
  *  - receive datagrams
  * and expose them in a single queue (MPSC) to be consumed by the forwarder.
  *
- * The _forwarder_ aims to re-assemble datagrams and reorder kypackets, and
- * send them to the receiving client. Since datagrams may be reordered or lost,
- * it bufferizes when necessary to wait some time for missing packets, but
- * after some timeout it considers a packet as lost, and continue sending the
- * following ones.
+ * The _forwarder_ aims to re-assemble datagrams using a RaptorQ decoder and
+ * reorder kypackets, and send them to the receiving client. Since datagrams
+ * may be reordered or lost, it bufferizes when necessary to wait some time for
+ * missing packets, but after some timeout it considers a packet as lost, and
+ * continue sending the following ones.
  *
  *
  * ## Protocol and implementation details
@@ -64,21 +65,39 @@ mod sender;
  * The sequence numbers are set to 0 for codec packets, since they are
  * meaningless here.
  *
- * Media packets (where `is_config` is false) are split into segments to be
+ * Media packets (where `is_config` is false) are used to generate RaptorQ
+ * packets (source and repair packets, to add forward error correction) and
  * sent in QUIC datagrams:
  *
  * ```notrust
  *                    +-------------------------+ +----+ +------------------+
  *      video packets |            P0           | | P1 | |       P2         |
  *                    +-------------------------+ +----+ +------------------+
- *           | split
- *           v
+ *          | RaptorQ |                         | |    | |                  |
+ *          v encoder v                         v v    v v                  v
  *                    +----+ +----+ +----+ +----+ +----+ +----+ +----+ +----+
  *     QUIC datagrams |P0D0| |P0D1| |P0D2| |P0D3| |P1D0| |P2D0| |P2D1| |P2D2|
- *                    +----+ +----+ +----+ +---#+ +---#+ +----+ +----+ +---#+
- *                                             ^      ^                    ^
- *                                             |      |                    |
- *                                               end of video packet flag
+ *                    +----+ +----+ +----+ +----+ +----+ +----+ +----+ +----+
+ *                    +----+ +----+ +----+        +----+ +----+ +----+ +----+
+ *                    |P0D4| |P0D5| |P0D6|        |P1D1| |P2D3| |P2D4| |P2D5|
+ *                    +----+ +----+ +----+        +----+ +----+ +----+ +----+
+ *                                                +----+
+ *                                                |P0D2|
+ *                                                +----+
+ * ```
+ *
+ * The number of additional repair symbols is a percentage (currently 30%) of
+ * the number of source symbols required for a single kypacket (with a minimum
+ * of at least a certain number of repair packets, currently 2):
+ *
+ * ```notrust
+ *  ----------------+-------------------------------------------------------
+ *   source symbols |  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18
+ *  ----------------+-------------------------------------------------------
+ *   repair symbols |  2  2  2  2  2  2  3  3  3  3  4  4  4  5  5  5  6  6
+ *  ----------------+-------------------------------------------------------
+ *    total symbols |  3  4  5  6  7  8 10 11 12 13 15 16 17 19 20 21 23 24
+ *  ----------------+-------------------------------------------------------
  * ```
  *
  * Here is the format of the QUIC datagram payload:
@@ -86,8 +105,8 @@ mod sender;
  *  - endpoint id: 64 bits (necessary for routing)
  *  - kypacket_seq: 32 bits
  *  - group_seq: 32 bits
- *  - end flag: 1 bit
- *  - datagram number: 31 bits
+ *  - RaptorQ Object Transmission Information: 96 bits (RFC6330 §3.3)
+ *  - RaptorQ Payload ID: 32 bits (RFC6330 §3.2)
  *  - kypacket segment: chunk of kypacket "as is" (the first one includes
  *                      the kypacket header)
  *
@@ -155,25 +174,28 @@ mod sender;
  *           +---------------------------+
  * ```
  *
- * This first layer is responsible to re-assemble kypackets from datagram
- * segments. Concretely, a struct `DatagramSegments` keeps all the received
- * segments, in order, for a given `kypacket_seq` until it is complete:
+ * This first layer is responsible to re-assemble kypackets from RaptorQ
+ * packets. Concretely, a struct `DatagramSegments` feeds a RaptorQ decoder
+ * for each kypacket, until the full original packet is recovered:
  *
  *
  * ```notrust
  *                    DatagramSegments
- *                    +----+        +----+ +----+        +----+
- *     kypacket 37:   | D0 |  None  | D2 | | D3 |  None  | D5 |  (total=6)
- *                    +----+        +----+ +----+        +---#+
- *                                                           ^ end of packet
+ *                    +----+ +----+ +----+ +----+
+ *     kypacket 37:   | D0 | | D5 | | D2 | | D3 | // a sufficient set of RaptorQ
+ *                    +----+ +----+ +----+ +----+ // encoding symbols
+ *                    |                         |
+ *                    v     RaptorQ decoder     v
+ *                    +-------------------------+
+ *                    | Original packet decoded |
+ *                    +-------------------------+
  *                           +----+ +----+
- *     kypacket 39:    None  | D1 | | D2 |  (total=?)
+ *     kypacket 39:    None  | D1 | | D2 |  // insufficient to decode kypacket
  *                           +----+ +----+
  *
  *                    +----+
- *     kypacket 42:   | D0 |  (total=1)   // ready to be assembled
- *                    +---#+
- *                        ^ end of packet
+ *     kypacket 42:   | D0 |  // insufficient to decode kypacket
+ *                    +----+
  * ```
  *
  * Once complete, this layer produces a full kypacket (`DatagramPacket`), via

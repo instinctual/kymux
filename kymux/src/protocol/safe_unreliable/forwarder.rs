@@ -6,7 +6,8 @@ use crate::{Error, Result};
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::Bytes;
+use raptorq;
 use tokio::io::AsyncWriteExt;
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::sync::mpsc;
@@ -136,16 +137,16 @@ impl Forwarder {
         let kypacket_seq = self.kypacket_sequencer.seq(msg.raw_kypacket_seq);
 
         if kypacket_seq >= self.next_kypacket_seq {
-            debug!("=== RECV datagram {}:{}", kypacket_seq, msg.datagram_number);
+            debug!("=== RECV datagram {}:{:?}", kypacket_seq, msg.payload_id);
             let index = self.prepare_pending_group(group_seq);
             let pending_group = &mut self.pending_groups[index];
-            pending_group.insert_datagram(kypacket_seq, msg.data, msg.datagram_number, msg.end);
+            pending_group.insert_datagram(kypacket_seq, msg.oti, msg.payload_id, msg.data);
 
             self.process().await
         } else {
             debug!(
-                "=== RECV datagram {}:{:?} (dropped)",
-                kypacket_seq, msg.datagram_number
+                "=== DROP datagram {}:{:?} (dropped)",
+                kypacket_seq, msg.payload_id
             );
             Ok(())
         }
@@ -351,17 +352,23 @@ impl PendingGroup {
         }
     }
 
-    fn insert_datagram(&mut self, kypacket_seq: u64, data: Bytes, datagram_number: u32, end: bool) {
+    fn insert_datagram(
+        &mut self,
+        kypacket_seq: u64,
+        oti: raptorq::ObjectTransmissionInformation,
+        payload_id: raptorq::PayloadId,
+        data: Bytes,
+    ) {
         let index = self
             .datagrams
             .binary_search_by_key(&kypacket_seq, |datagram| datagram.kypacket_seq);
         // If the kypacket having this kypacket_seq is not already re-assembled
         if index.is_err() {
-            let index = self.prepare_datagram_segments(kypacket_seq);
+            let index = self.prepare_datagram_segments(kypacket_seq, oti);
 
             let is_complete = {
                 let segments = &mut self.segments[index];
-                segments.set_segment(datagram_number as usize, data, end);
+                segments.add_packet(oti, payload_id, data);
                 segments.is_complete()
             };
 
@@ -373,14 +380,18 @@ impl PendingGroup {
         }
     }
 
-    fn prepare_datagram_segments(&mut self, kypacket_seq: u64) -> usize {
+    fn prepare_datagram_segments(
+        &mut self,
+        kypacket_seq: u64,
+        oti: raptorq::ObjectTransmissionInformation,
+    ) -> usize {
         let index = self
             .segments
             .binary_search_by_key(&kypacket_seq, |segments| segments.kypacket_seq);
         match index {
             Ok(index) => index,
             Err(index) => {
-                let segments = DatagramSegments::new(kypacket_seq);
+                let segments = DatagramSegments::new(kypacket_seq, oti);
                 self.segments.insert(index, segments);
                 index
             }
@@ -409,50 +420,40 @@ impl PendingGroup {
 #[derive(Debug)]
 struct DatagramSegments {
     kypacket_seq: u64,
-    total_segments: Option<usize>, // number of segments in the kypacket
-    segments: Vec<Option<Bytes>>,  // datagram i at index i
-    segments_count: usize,         // number of non-None datagrams in segments
+    oti: raptorq::ObjectTransmissionInformation,
+    decoder: raptorq::Decoder,
+    assembled: Option<Vec<u8>>,
 }
 
 impl DatagramSegments {
-    fn new(kypacket_seq: u64) -> Self {
+    fn new(kypacket_seq: u64, oti: raptorq::ObjectTransmissionInformation) -> Self {
         Self {
             kypacket_seq,
-            total_segments: None,
-            segments: Vec::new(),
-            segments_count: 0,
+            oti,
+            decoder: raptorq::Decoder::new(oti),
+            assembled: None,
         }
+    }
+
+    fn add_packet(
+        &mut self,
+        oti: raptorq::ObjectTransmissionInformation,
+        payload_id: raptorq::PayloadId,
+        data: Bytes,
+    ) {
+        assert!(self.assembled.is_none());
+        assert!(oti == self.oti);
+        let encoding_packet = raptorq::EncodingPacket::new(payload_id, data.into());
+        self.assembled = self.decoder.decode(encoding_packet);
     }
 
     fn is_complete(&self) -> bool {
-        self.total_segments == Some(self.segments_count)
-    }
-
-    fn merge_segments(segments: &Vec<Option<Bytes>>) -> Bytes {
-        let mut bytes = BytesMut::new();
-        for segment in segments {
-            let segment = segment.as_ref().expect("Unexpected None segment");
-            bytes.put_slice(segment);
-        }
-        bytes.freeze()
-    }
-
-    fn set_segment(&mut self, index: usize, segment: Bytes, end: bool) {
-        if index >= self.segments.len() {
-            self.segments.resize(index + 1, None);
-        }
-        assert!(self.segments[index].is_none());
-        self.segments[index] = Some(segment);
-        self.segments_count += 1;
-        if end {
-            assert!(self.total_segments.is_none());
-            self.total_segments = Some(index + 1)
-        }
+        self.assembled.is_some()
     }
 
     fn assemble(self) -> DatagramPacket {
         assert!(self.is_complete());
-        let data = Self::merge_segments(&self.segments);
+        let data = self.assembled.unwrap();
 
         // TODO for now, the kypacket header is sent "as is" over datagrams.
         // In the future, they might be rewritten (we don't need the same data,
@@ -460,7 +461,7 @@ impl DatagramSegments {
         let header = Packet::parse_media_packet_header(&data);
 
         let packet = Packet::Media(MediaPacket {
-            data,
+            data: data.into(),
             header,
         });
 
@@ -468,61 +469,6 @@ impl DatagramSegments {
             packet,
             kypacket_seq: self.kypacket_seq,
             instant: Instant::now(),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test() {
-        let d0 = {
-            let mut buf = BytesMut::with_capacity(128);
-            buf.put_u32(0);
-            let flags = 0b101 << 61; // media + key
-            buf.put_u64(0x1234567 | flags);
-            buf.put_u32(17); // kypacket_size
-            buf.put([1, 3, 5, 7, 9, 11, 13].as_ref()); // random data
-            buf.freeze()
-        };
-
-        let d1 = Bytes::from([2, 4, 6, 8, 10, 12].as_ref());
-        let d2 = Bytes::from([0xF0, 0xE0, 0xD0, 0xC0].as_ref());
-
-        let kypacket_seq = 42;
-        let mut datagram_segments = DatagramSegments::new(kypacket_seq);
-
-        assert!(!datagram_segments.is_complete());
-        datagram_segments.set_segment(1, d1, false);
-        assert!(!datagram_segments.is_complete());
-        datagram_segments.set_segment(2, d2, true);
-        assert!(!datagram_segments.is_complete());
-        datagram_segments.set_segment(0, d0, false);
-        assert!(datagram_segments.is_complete());
-
-        let datagram_packet = datagram_segments.assemble();
-        assert_eq!(datagram_packet.kypacket_seq, 42);
-
-        if let Packet::Media(packet) = datagram_packet.packet {
-            assert_eq!(packet.pts, 0x1234567);
-            assert!(!packet.is_config);
-            assert!(packet.is_key);
-            assert_eq!(packet.data.len(), 33);
-
-            // header
-            assert_eq!(
-                &packet.data[..16],
-                [0, 0, 0, 0, 0xA0, 0, 0, 0, 1, 0x23, 0x45, 0x67, 0, 0, 0, 17]
-            );
-            // payload
-            assert_eq!(
-                &packet.data[16..],
-                [1, 3, 5, 7, 9, 11, 13, 2, 4, 6, 8, 10, 12, 0xF0, 0xE0, 0xD0, 0xC0]
-            );
-        } else {
-            panic!("Not a media packet");
         }
     }
 }

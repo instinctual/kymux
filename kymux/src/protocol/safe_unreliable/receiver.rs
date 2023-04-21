@@ -8,6 +8,7 @@ use log::{debug, error, info, warn};
 
 use bytes::{Buf, Bytes};
 use quinn::RecvStream;
+use raptorq;
 use tokio::io::AsyncReadExt;
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::sync::mpsc;
@@ -32,8 +33,8 @@ pub(super) struct DatagramMsg {
     pub(super) data: Bytes,
     pub(super) raw_kypacket_seq: u32,
     pub(super) raw_group_seq: u32,
-    pub(super) datagram_number: u32,
-    pub(super) end: bool,
+    pub(super) oti: raptorq::ObjectTransmissionInformation,
+    pub(super) payload_id: raptorq::PayloadId,
 }
 
 impl Receiver {
@@ -87,15 +88,21 @@ impl Receiver {
                     let _endpoint_id = buf.get_u64();
                     let raw_kypacket_seq = buf.get_u32();
                     let raw_group_seq = buf.get_u32();
-                    let datagram_number_and_end = buf.get_u32();
-                    let datagram_number = datagram_number_and_end & ((1 << 31) - 1);
-                    let end = (datagram_number_and_end & (1 << 31)) != 0;
+
+                    let mut oti = [0; 12];
+                    buf.copy_to_slice(&mut oti);
+                    let oti = raptorq::ObjectTransmissionInformation::deserialize(&oti);
+
+                    let mut payload_id = [0; 4];
+                    buf.copy_to_slice(&mut payload_id);
+                    let payload_id = raptorq::PayloadId::deserialize(&payload_id);
+
                     tx.send(RecvMsg::Datagram(DatagramMsg {
                         data: buf,
                         raw_kypacket_seq,
                         raw_group_seq,
-                        datagram_number,
-                        end,
+                        oti,
+                        payload_id,
                     }))
                     .await
                     .map_err(|_| Error::KymuxProtocolError("Could not send message".to_string()))?

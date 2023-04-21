@@ -6,6 +6,7 @@ use crate::{Error, Result};
 use log::{debug, error, info, warn};
 
 use bytes::{BufMut, BytesMut};
+use raptorq;
 use tokio::net::tcp::OwnedReadHalf;
 
 pub(super) struct Sender;
@@ -75,49 +76,51 @@ impl Sender {
         packet: MediaPacket,
         ky_channel_tx: &KyChannelSend,
     ) -> Result<()> {
-        let mut offset = 0;
-        let mut datagram_number = 0;
-        while offset < packet.data.len() {
-            // The max_datagram_size may change over time, so call it for
-            // every packet
-            if let Some(max_datagram_size) = ky_channel_tx.max_datagram_size() {
-                const HEADER_SIZE: usize = 20;
-                assert!(max_datagram_size > HEADER_SIZE);
-                // Datagram header:
-                //  - endpoint id (to be written explicitly): 64 bits
-                //  - kypacket_seq: 32 bits
-                //  - group_seq: 32 bits (incremented on each config packet)
-                //  - last datagram of ky-packet flag (end): 1 bit
-                //  - datagram number: 31 bits
-                //  - kypacket segment
-                let payload_size =
-                    std::cmp::min(max_datagram_size - HEADER_SIZE, packet.data.len() - offset);
-                let mut buf = BytesMut::with_capacity(HEADER_SIZE + payload_size);
+        let max_datagram_size = ky_channel_tx
+            .max_datagram_size()
+            .ok_or_else(|| Error::KymuxProtocolError("Datagrams not supported".to_string()))?;
+        const HEADER_SIZE: usize = 32;
+        assert!(max_datagram_size > HEADER_SIZE);
+        assert!(max_datagram_size < 0x10000);
+        // Datagram header:
+        //  - endpoint id (to be written explicitly): 64 bits
+        //  - kypacket_seq: 32 bits
+        //  - group_seq: 32 bits (incremented on each config packet)
+        //  - raptorq Object Transmission Information: 96 bits
+        //  - raptorq payload id: 32 bits
+        //  - kypacket segment
 
-                assert!(payload_size < 1 << 16);
+        let max_payload_size = (max_datagram_size - HEADER_SIZE) as u16;
+        let encoder = raptorq::Encoder::with_defaults(&packet.data, max_payload_size);
+        let oti = encoder.get_config();
 
-                let end = offset + payload_size == packet.data.len();
-                let datagram_number_and_end = datagram_number | if end { 1 << 31 } else { 0 };
+        let kypacket_size = packet.data.len();
+        let symbol_size = oti.symbol_size() as usize;
 
-                ky_channel_tx.write_datagram_header(&mut buf);
-                buf.put_u32(kypacket_seq);
-                buf.put_u32(group_seq);
-                buf.put_u32(datagram_number_and_end);
-                buf.put(&packet.data[offset..offset + payload_size]);
+        // div_ceil() not stabilized yet
+        let source_symbols = (kypacket_size + symbol_size - 1) / symbol_size;
 
-                debug!(
-                    "#### send datagram {:?}:{:?} (group={:?})",
-                    kypacket_seq, datagram_number, group_seq
-                );
-                ky_channel_tx.send_datagram(buf.freeze()).await?;
+        // Add 30% repair packets (at least 2 packets)
+        let repair_symbols = ((source_symbols as f32 * 0.3).ceil() as u32).max(2);
 
-                offset += payload_size;
-                datagram_number += 1;
-            } else {
-                return Err(Error::KymuxProtocolError(
-                    "Datagrams not supported".to_string(),
-                ));
-            }
+        let oti = oti.serialize();
+
+        for encoded_packet in encoder.get_encoded_packets(repair_symbols).into_iter() {
+            let (payload_id, data) = encoded_packet.split();
+            let raw_payload_id = payload_id.serialize();
+            let mut buf = BytesMut::with_capacity(HEADER_SIZE + data.len());
+            ky_channel_tx.write_datagram_header(&mut buf);
+            buf.put_u32(kypacket_seq);
+            buf.put_u32(group_seq);
+            buf.put(&oti[..]);
+            buf.put(&raw_payload_id[..]);
+            buf.put(&data[..]);
+
+            debug!(
+                "#### send datagram {:?}:{:?} (group={:?})",
+                kypacket_seq, payload_id, group_seq
+            );
+            ky_channel_tx.send_datagram(buf.freeze()).await?;
         }
 
         Ok(())
