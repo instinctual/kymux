@@ -39,8 +39,10 @@ enum KymuxError {
 
 #[tokio::main]
 async fn main() -> Result<(), KymuxError> {
+    // example: KYMUX_LOG=info,kymux::protocol=debug
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info)
+        .parse_env("KYMUX_LOG")
         .init();
 
     let args: Vec<String> = env::args().collect();
