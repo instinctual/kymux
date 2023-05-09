@@ -131,7 +131,6 @@ pub(crate) struct MediaPacket {
 
 #[derive(Debug)]
 pub(crate) struct MediaPacketHeader {
-    stream_id: u32,
     is_config: bool,
     is_key: bool,
     pts: u64,
@@ -141,21 +140,21 @@ pub(crate) struct MediaPacketHeader {
 impl Packet {
     pub(crate) async fn read(input: &mut (impl AsyncReadExt + Unpin)) -> Result<Packet> {
         let mut buf = BytesMut::new();
-        buf.resize(16, 0);
+        buf.resize(12, 0);
         input.read_exact(&mut buf).await?;
-        assert!(buf.len() == 16);
+        assert!(buf.len() == 12);
 
-        let is_media_packet = buf[4] & 0x80 != 0;
+        let is_media_packet = buf[0] & 0x80 != 0;
         let packet = if is_media_packet {
             let header = Self::parse_media_packet_header(&buf);
 
             debug!(
-                "[MEDIA stream_id={}] is_config={} is_key={} pts={} size={}",
-                header.stream_id, header.is_config, header.is_key, header.pts, header.size
+                "[MEDIA] is_config={} is_key={} pts={} size={}",
+                header.is_config, header.is_key, header.pts, header.size
             );
 
-            buf.resize(16 + header.size as usize, 0);
-            input.read_exact(&mut buf[16..]).await?;
+            buf.resize(12 + header.size as usize, 0);
+            input.read_exact(&mut buf[12..]).await?;
 
             Packet::Media(MediaPacket {
                 data: buf.freeze(),
@@ -171,15 +170,13 @@ impl Packet {
     }
 
     pub(crate) fn parse_media_packet_header(buf: &[u8]) -> MediaPacketHeader {
-        assert!(buf[4] & 0x80 != 0); // media packet
-        let stream_id = u32::from_be_bytes(buf[..4].try_into().unwrap());
-        let pts_and_flags = u64::from_be_bytes(buf[4..12].try_into().unwrap());
+        assert!(buf[0] & 0x80 != 0); // media packet
+        let pts_and_flags = u64::from_be_bytes(buf[..8].try_into().unwrap());
         let is_config = (pts_and_flags & 0x40_00_00_00_00_00_00_00) != 0;
         let is_key = (pts_and_flags & 0x20_00_00_00_00_00_00_00) != 0;
         let pts = pts_and_flags & 0x1F_FF_FF_FF_FF_FF_FF_FF;
-        let size = u32::from_be_bytes(buf[12..16].try_into().unwrap());
+        let size = u32::from_be_bytes(buf[8..12].try_into().unwrap());
         MediaPacketHeader {
-            stream_id,
             is_config,
             is_key,
             pts,
