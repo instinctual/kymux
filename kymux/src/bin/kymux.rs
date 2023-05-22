@@ -93,7 +93,7 @@ async fn server(quic_listen_port: u16, stream_types: Vec<StreamType>) -> Result<
     let cert_chain = vec![certificate];
 
     // Start connection listener
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), quic_listen_port);
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), quic_listen_port);
 
     info!("kymux: Listening to {addr}");
     let config = kymux::ServerConfig::new(addr, cert_chain, private_key);
