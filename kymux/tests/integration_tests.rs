@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
-use kymux::StreamType;
+use kymux::{StreamType, VideoProtocol};
 
 const SERVER_NAME: &str = "kymux_test";
 const PORT: u16 = 10000;
@@ -359,7 +359,7 @@ async fn stress_test() {
     for i in 0..50 {
         // Create the endpoint
         let (connection, stream_type) = if i % 2 == 0 {
-            (&mut client, StreamType::Video)
+            (&mut client, StreamType::Video(VideoProtocol::Reliable))
         } else {
             (&mut server, StreamType::Input)
         };

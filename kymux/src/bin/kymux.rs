@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use log::{error, info, LevelFilter};
 use thiserror::Error;
 
-use kymux::StreamType;
+use kymux::{StreamType, VideoProtocol};
 
 /**
  * Command line kymux tool (useful for debugging/testing)
@@ -60,7 +60,13 @@ async fn main() -> Result<(), KymuxError> {
                 .iter()
                 .skip(3)
                 .map(|s| match s.as_str() {
-                    "video" => Ok(StreamType::Video),
+                    "video" => {
+                        let protocol_name = std::env::var("KYMUX_PROTOCOL_VIDEO")
+                            .unwrap_or_else(|_| "reliable".to_string());
+                        let protocol = parse_video_protocol(&protocol_name).unwrap();
+                        info!("Using video protocol {protocol:?}");
+                        Ok(StreamType::Video(protocol))
+                    }
                     "audio" => Ok(StreamType::Audio),
                     s => Err(KymuxError::SyntaxError(format!(
                         "Unexpected stream type: {}",
@@ -84,6 +90,20 @@ async fn main() -> Result<(), KymuxError> {
         }
     }
     Ok(())
+}
+
+fn parse_video_protocol(name: &str) -> Result<VideoProtocol, KymuxError> {
+    let protocol = match name {
+        "reliable" => VideoProtocol::Reliable,
+        "gopstream" => VideoProtocol::GopStream,
+        "unreliable_fec" => VideoProtocol::UnreliableFec,
+        _ => {
+            return Err(KymuxError::SyntaxError(format!(
+                "Unknown video protocol: {name}"
+            )))
+        }
+    };
+    Ok(protocol)
 }
 
 async fn server(quic_listen_port: u16, stream_types: Vec<StreamType>) -> Result<(), KymuxError> {

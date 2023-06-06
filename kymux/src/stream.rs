@@ -7,8 +7,16 @@ pub enum StreamOwner {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[repr(C)]
+pub enum VideoProtocol {
+    Reliable,
+    GopStream,
+    UnreliableFec,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum StreamType {
-    Video,
+    Video(VideoProtocol),
     Audio,
     Input,
 }

@@ -20,7 +20,7 @@ mod stream;
 
 pub use endpoint::EndpointDesc;
 pub use error::{Error, Result};
-pub use stream::{StreamOwner, StreamType};
+pub use stream::{StreamOwner, StreamType, VideoProtocol};
 
 use client_listener::ClientListener;
 use control::{ControlMsg, ControlTask};

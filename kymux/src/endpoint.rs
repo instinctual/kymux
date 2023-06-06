@@ -1,4 +1,4 @@
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
@@ -6,7 +6,7 @@ use crate::protocol::gopstream::GopStreamProtocol;
 use crate::protocol::unreliable_fec::UnreliableFecProtocol;
 use crate::protocol::{Protocol, SimpleBiProtocol, SimpleUniProtocol};
 use crate::router::KyChannel;
-use crate::{Error, Result, StreamOwner, StreamType};
+use crate::{Error, Result, StreamOwner, StreamType, VideoProtocol};
 
 #[derive(Clone, Copy, Debug)]
 pub struct EndpointDesc {
@@ -115,26 +115,12 @@ impl Endpoint {
 
         let mut protocol: Box<dyn Protocol + Send> = match desc.type_ {
             StreamType::Input => Box::new(SimpleBiProtocol::new(desc)),
-            StreamType::Video => {
-                let protocol_name =
-                    std::env::var("KYMUX_PROTOCOL_VIDEO").unwrap_or("reliable".to_string());
-                match protocol_name.as_str() {
-                    "reliable" => {
-                        info!("Using video protocol 'reliable'");
-                        Box::new(SimpleUniProtocol::new(desc))
-                    }
-                    "gopstream" => {
-                        info!("Using video protocol 'gopstream'");
-                        Box::new(GopStreamProtocol::new(desc))
-                    }
-                    "unreliable_fec" => {
-                        info!("Using video protocol 'unreliable_fec'");
-                        Box::new(UnreliableFecProtocol::new(desc))
-                    }
-                    _ => {
-                        warn!("Unsupported protocol: {protocol_name}, using 'reliable'");
-                        Box::new(SimpleUniProtocol::new(desc))
-                    }
+            StreamType::Video(protocol) => {
+                info!("Using video protocol '{protocol:?}'");
+                match protocol {
+                    VideoProtocol::Reliable => Box::new(SimpleUniProtocol::new(desc)),
+                    VideoProtocol::GopStream => Box::new(GopStreamProtocol::new(desc)),
+                    VideoProtocol::UnreliableFec => Box::new(UnreliableFecProtocol::new(desc)),
                 }
             }
             StreamType::Audio => Box::new(SimpleUniProtocol::new(desc)),
