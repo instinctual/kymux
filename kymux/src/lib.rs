@@ -218,6 +218,7 @@ struct Task {
 
 pub struct Connection {
     _conn: quinn::Connection,
+    router: Arc<Router>,
     endpoint: quinn::Endpoint,
 
     ctrlchan_tx: mpsc::Sender<ControlMsg>,
@@ -250,7 +251,7 @@ impl Connection {
         );
 
         let mut router = Router::new(conn.clone());
-        router.start();
+        router.start().await;
         let router = Arc::new(router);
 
         // Listen for local clients
@@ -285,6 +286,7 @@ impl Connection {
 
         Ok(Self {
             _conn: conn,
+            router,
             endpoint,
             ctrlchan_tx: msg_tx,
             state,
@@ -386,6 +388,8 @@ impl Connection {
 
             // TODO stop tasks explicitly?
         }
+
+        self.router.stop().await?;
 
         Ok(())
     }

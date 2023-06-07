@@ -5,6 +5,7 @@ use crate::io_utils;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
 
 #[allow(unused_imports)]
@@ -12,8 +13,8 @@ use log::{debug, error, info, warn};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use quinn::{RecvStream, SendStream};
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use tokio::sync::{mpsc, oneshot};
 
 type ClientMap = HashMap<u64, RouterClient>;
 
@@ -30,9 +31,17 @@ pub(crate) struct RouterClient {
 }
 
 #[derive(Debug)]
+struct TaskWrapper {
+    join_handle: tokio::task::JoinHandle<()>,
+    tx: oneshot::Sender<()>,
+    name: String,
+}
+
+#[derive(Debug)]
 pub(crate) struct Router {
     conn: quinn::Connection,
     clients: Arc<Mutex<ClientMap>>,
+    tasks: Mutex<Vec<TaskWrapper>>,
 }
 
 impl Router {
@@ -40,33 +49,77 @@ impl Router {
         Self {
             conn,
             clients: Arc::new(Mutex::new(HashMap::new())),
+            tasks: Default::default(),
         }
     }
 
-    pub fn start(&mut self) {
-        let conn = self.conn.clone();
-        let clients = self.clients.clone();
-        tokio::spawn(async move {
-            if let Err(err) = Self::accept_channels_uni(conn, clients).await {
-                error!("Accept uni failed: {err:?}");
+    fn spawn_task<F>(task_entry: F, name: String) -> TaskWrapper
+    where
+        F: Future<Output = Result<()>> + Send + 'static,
+    {
+        let (tx, rx) = oneshot::channel();
+        let task_name = name.clone();
+
+        let join_handle = tokio::spawn(async move {
+            tokio::select! {
+                _ = rx => {}
+                ret = task_entry => {
+                    if let Err(err) = ret {
+                        error!("{task_name} failed: {err:?}");
+                    }
+                }
             }
         });
 
-        let conn = self.conn.clone();
-        let clients = self.clients.clone();
-        tokio::spawn(async move {
-            if let Err(err) = Self::accept_channels_bi(conn, clients).await {
-                error!("Accept bi failed: {err:?}");
-            }
-        });
+        TaskWrapper {
+            tx,
+            join_handle,
+            name,
+        }
+    }
 
-        let conn = self.conn.clone();
-        let clients = self.clients.clone();
-        tokio::spawn(async move {
-            if let Err(err) = Self::recv_channels_datagrams(conn, clients).await {
-                error!("Recv datagrams failed: {err:?}");
+    pub async fn start(&mut self) {
+        // Accept Uni
+        let accept_uni_task = Self::spawn_task(
+            Self::accept_channels_uni(self.conn.clone(), self.clients.clone()),
+            "Accept uni".into(),
+        );
+
+        // Accept Bi
+        let accept_bi_task = Self::spawn_task(
+            Self::accept_channels_bi(self.conn.clone(), self.clients.clone()),
+            "Accept bi".into(),
+        );
+
+        // Read Datagrams
+        let receive_task = Self::spawn_task(
+            Self::recv_channels_datagrams(self.conn.clone(), self.clients.clone()),
+            "Recv datagrams".into(),
+        );
+
+        let mut router_tasks = self.tasks.lock().await;
+        *router_tasks = vec![accept_uni_task, accept_bi_task, receive_task];
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        let tasks = {
+            let mut tasks = self.tasks.lock().await;
+            std::mem::take(&mut *tasks)
+        };
+
+        for task in tasks {
+            let ret = task.tx.send(());
+            if ret.is_err() {
+                warn!("Task {} seems to be already stopped", task.name);
             }
-        });
+
+            let ret = task.join_handle.await;
+            if let Err(err) = ret {
+                warn!("Task {} ended with error {err:?}", task.name);
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn register(&self, endpoint_id: u64) -> Result<KyChannel> {
