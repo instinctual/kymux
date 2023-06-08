@@ -282,11 +282,11 @@ mod sender;
  * intra-refresh strategy or if we send keyframes often.
  */
 
-pub(crate) struct SafeUnreliableProtocol {
+pub(crate) struct UnreliableFecProtocol {
     desc: EndpointDesc,
 }
 
-impl SafeUnreliableProtocol {
+impl UnreliableFecProtocol {
     #[allow(dead_code)]
     pub(crate) fn new(desc: EndpointDesc) -> Self {
         Self { desc }
@@ -294,7 +294,7 @@ impl SafeUnreliableProtocol {
 }
 
 #[async_trait]
-impl Protocol for SafeUnreliableProtocol {
+impl Protocol for UnreliableFecProtocol {
     async fn forward(&mut self, ky_channel: KyChannel, client: TcpStream) -> Result<()> {
         let (client_rx, client_tx) = client.into_split();
         let (ky_channel_rx, ky_channel_tx) = ky_channel.into_split();

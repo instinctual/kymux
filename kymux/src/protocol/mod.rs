@@ -10,8 +10,8 @@ use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 
 pub mod gopstream;
-pub mod safe_unreliable;
 mod seq;
+pub mod unreliable_fec;
 
 #[async_trait]
 pub(crate) trait Protocol {
