@@ -451,8 +451,7 @@ impl Connection {
         Ok(state
             .endpoints
             .values()
-            .map(|endpoint| endpoint.desc())
-            .cloned()
+            .map(|endpoint| *endpoint.desc())
             .collect())
     }
 
