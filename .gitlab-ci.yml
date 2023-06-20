@@ -53,6 +53,8 @@ test-debian-buster-x86_64:
     - main
     - merge_requests
     - tags
+  needs:
+    - build-debian-buster-x86_64
   script: |
     cargo test
 
@@ -65,6 +67,8 @@ clippy-debian-buster-x86_64:
     - main
     - merge_requests
     - tags
+  needs:
+    - build-debian-buster-x86_64
   script: |
     cargo clippy -- -D warnings
 
@@ -89,6 +93,8 @@ test-windows-x86_64:
     - main
     - merge_requests
     - tags
+  needs:
+    - build-windows-x86_64
   script: |
     cargo test --target x86_64-pc-windows-gnu --no-run
 
@@ -101,6 +107,8 @@ clippy-windows-x86_64:
     - main
     - merge_requests
     - tags
+  needs:
+    - build-windows-x86_64
   script: |
     cargo clippy --target x86_64-pc-windows-gnu -- -D warnings
 
@@ -139,6 +147,8 @@ build-macos-x86_64:
 clippy-macos-x86_64:
   extends: .clippy-macos-common
   variables: *variables-macos-x86_64
+  needs:
+    - build-macos-x86_64
 
 build-macos-arm64:
   extends: .build-macos-common
@@ -154,9 +164,13 @@ test-macos-arm64:
     - main
     - merge_requests
     - tags
+  needs:
+    - build-macos-arm64
   script: |
     cargo test
 
 clippy-macos-arm64:
   extends: .clippy-macos-common
   variables: *variables-macos-arm64
+  needs:
+    - build-macos-arm64
