@@ -107,10 +107,10 @@ impl GopStreamProtocol {
                     codec = (codec.0 + 1, Some(packet));
                 }
                 Packet::Media(packet) => {
-                    if packet.is_config {
+                    if packet.header.is_config {
                         config = (config.0 + 1, Some(packet));
                     } else {
-                        if packet.is_key {
+                        if packet.header.is_key {
                             // Start a new QUIC stream
                             let mut new_stream = ky_channel_tx.open_uni().await?;
 
@@ -241,7 +241,7 @@ impl GopStreamProtocol {
                         }
                     }
                     Packet::Media(packet) => {
-                        if !packet.is_config || config_gen != last_config_gen {
+                        if !packet.header.is_config || config_gen != last_config_gen {
                             client_tx.write_all(&packet.data).await?;
                             last_config_gen = config_gen;
                         }
