@@ -5,7 +5,6 @@ use crate::{EndpointDesc, Result, StreamOwner};
 use async_trait::async_trait;
 use tokio::net::TcpStream;
 
-mod forwarder;
 mod receiver;
 mod sender;
 
