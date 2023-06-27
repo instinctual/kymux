@@ -44,7 +44,7 @@ pub enum Error {
     EndpointBuilderNotReady,
 
     #[error("Endpoint {id:X} is unknown")]
-    EndpointUnknown { id: u64 },
+    EndpointUnknown { id: u16 },
     #[error("Endpoint creation has failed: {source:?}")]
     EndpointCreateFailed { source: io::Error },
     #[error("Endpoint connect has failed")]
@@ -63,9 +63,9 @@ pub enum Error {
     EndpointClientListenFailed,
 
     #[error("KyChannel already registered {endpoint_id:X}")]
-    KyChannelAlreadyRegistered { endpoint_id: u64 },
+    KyChannelAlreadyRegistered { endpoint_id: u16 },
     #[error("KyChannel unknown id {endpoint_id:X}")]
-    KyChannelUnknownId { endpoint_id: u64 },
+    KyChannelUnknownId { endpoint_id: u16 },
     #[error("KyChannel connection error: {source:?}")]
     KyChannelConnectionError {
         #[from]

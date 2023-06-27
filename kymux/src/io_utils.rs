@@ -50,14 +50,14 @@ where
     write_buf(tx, buf).await
 }
 
-pub(crate) async fn read_endpoint_id(reader: &mut (impl AsyncReadExt + Unpin)) -> Result<u64> {
-    Ok(reader.read_u64().await?)
+pub(crate) async fn read_endpoint_id(reader: &mut (impl AsyncReadExt + Unpin)) -> Result<u16> {
+    Ok(reader.read_u16().await?)
 }
 
 pub(crate) async fn write_endpoint_id(
     writer: &mut (impl AsyncWriteExt + Unpin),
-    id: u64,
+    id: u16,
 ) -> Result<()> {
-    writer.write_u64(id).await?;
+    writer.write_u16(id).await?;
     Ok(())
 }

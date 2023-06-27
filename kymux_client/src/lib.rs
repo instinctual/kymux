@@ -18,7 +18,7 @@ pub enum Error {
     },
 }
 
-fn parse_uri(uri: &str) -> Result<(SocketAddr, u64), Error> {
+fn parse_uri(uri: &str) -> Result<(SocketAddr, u16), Error> {
     let parsed_uri = url::Url::parse(uri).map_err(|e| {
         warn!("Kymux URL parse error: {e:?}");
         Error::InvalidUri
@@ -58,7 +58,7 @@ fn parse_uri(uri: &str) -> Result<(SocketAddr, u64), Error> {
 
     let path = &parsed_uri.path()[1..];
 
-    let endpoint_id = match u64::from_str_radix(path, 16) {
+    let endpoint_id = match u16::from_str_radix(path, 16) {
         Ok(endpoint_id) => endpoint_id,
         Err(err) => {
             warn!("URI {uri} endrpoint failed: {err:?}");
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn parse_uri() {
         let port: u16 = 4343;
-        let endpoint_id: u64 = 0x0123456789ABCDEF;
+        let endpoint_id: u16 = 0x0123;
 
         let uri = format!("kymux://127.0.0.1:{port}/{endpoint_id:X}");
         let (addr, parsed_endpoint_id) = super::parse_uri(&uri).unwrap();

@@ -10,7 +10,7 @@ use crate::{Error, Result, StreamOwner, StreamType, VideoProtocol};
 
 #[derive(Clone, Copy, Debug)]
 pub struct EndpointDesc {
-    pub id: u64,
+    pub id: u16,
     pub owner: StreamOwner,
     pub type_: StreamType,
 }

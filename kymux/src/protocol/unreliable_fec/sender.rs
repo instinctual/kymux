@@ -83,7 +83,7 @@ impl Sender {
         assert!(max_datagram_size > HEADER_SIZE);
         assert!(max_datagram_size < 0x10000);
         // Datagram header:
-        //  - endpoint id (to be written explicitly): 64 bits
+        //  - endpoint id (to be written explicitly): 16 bits
         //  - kypacket_seq: 32 bits
         //  - group_seq: 32 bits (incremented on each config packet)
         //  - raptorq Object Transmission Information: 96 bits

@@ -50,10 +50,10 @@ impl ClientListener {
 
     async fn handle_client(&mut self, mut client: TcpStream) -> Result<()> {
         // Get Handshake
-        let mut b = [0u8; 8];
+        let mut b = [0u8; 2];
         client.read_exact(&mut b).await?;
 
-        let endpoint_id = u64::from_be_bytes(b);
+        let endpoint_id = u16::from_be_bytes(b);
 
         {
             // Update endpoint

@@ -13,9 +13,9 @@ use crate::{Error, Result};
 pub(crate) enum ControlMsg {
     Authenticate,
     ConnectionAccepted,
-    RegisterEndpoint { id: u64, type_: StreamType },
-    EndpointRegistered { endpoint_id: u64 },
-    ClientConnected { endpoint_id: u64 },
+    RegisterEndpoint { id: u16, type_: StreamType },
+    EndpointRegistered { endpoint_id: u16 },
+    ClientConnected { endpoint_id: u16 },
 }
 
 pub(crate) struct ControlTask {

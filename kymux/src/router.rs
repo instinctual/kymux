@@ -16,7 +16,7 @@ use quinn::{RecvStream, SendStream};
 use tokio::sync::Mutex;
 use tokio::sync::{mpsc, oneshot};
 
-type ClientMap = HashMap<u64, RouterClient>;
+type ClientMap = HashMap<u16, RouterClient>;
 
 #[derive(Debug)]
 pub enum KyRecvMsg {
@@ -122,7 +122,7 @@ impl Router {
         Ok(())
     }
 
-    pub async fn register(&self, endpoint_id: u64) -> Result<KyChannel> {
+    pub async fn register(&self, endpoint_id: u16) -> Result<KyChannel> {
         let (tx, rx) = mpsc::channel(16);
 
         let mut clients = self.clients.lock().await;
@@ -201,8 +201,8 @@ impl Router {
     ) -> Result<()> {
         loop {
             let datagram = conn.read_datagram().await?;
-            if datagram.len() >= 8 {
-                let endpoint_id = u64::from_be_bytes((&datagram[..8]).try_into().unwrap());
+            if datagram.len() >= 2 {
+                let endpoint_id = u16::from_be_bytes((&datagram[..2]).try_into().unwrap());
                 let mut clients = clients.lock().await;
                 if let Some(client) = clients.get_mut(&endpoint_id) {
                     client
@@ -226,7 +226,7 @@ impl Router {
 
 #[derive(Debug)]
 pub(crate) struct KyChannel {
-    endpoint_id: u64,
+    endpoint_id: u16,
     conn: quinn::Connection,
     rx: mpsc::Receiver<KyRecvMsg>,
     dropper: KyChannelDropper,
@@ -234,14 +234,14 @@ pub(crate) struct KyChannel {
 
 #[derive(Debug)]
 pub(crate) struct KyChannelSend {
-    endpoint_id: u64,
+    endpoint_id: u16,
     conn: quinn::Connection,
     dropper: Arc<KyChannelDropper>,
 }
 
 #[derive(Debug)]
 pub(crate) struct KyChannelRecv {
-    endpoint_id: u64,
+    endpoint_id: u16,
     conn: quinn::Connection,
     rx: mpsc::Receiver<KyRecvMsg>,
     dropper: Arc<KyChannelDropper>,
@@ -249,12 +249,12 @@ pub(crate) struct KyChannelRecv {
 
 #[derive(Debug)]
 struct KyChannelDropper {
-    endpoint_id: u64,
+    endpoint_id: u16,
     clients: Arc<Mutex<ClientMap>>, // to implement Drop
 }
 
 impl KyChannelSend {
-    async fn open_uni_(conn: &quinn::Connection, endpoint_id: u64) -> Result<SendStream> {
+    async fn open_uni_(conn: &quinn::Connection, endpoint_id: u16) -> Result<SendStream> {
         let mut send = conn.open_uni().await?;
         io_utils::write_endpoint_id(&mut send, endpoint_id).await?;
         Ok(send)
@@ -262,7 +262,7 @@ impl KyChannelSend {
 
     async fn open_bi_(
         conn: &quinn::Connection,
-        endpoint_id: u64,
+        endpoint_id: u16,
     ) -> Result<(SendStream, RecvStream)> {
         let (mut send, recv) = conn.open_bi().await?;
         io_utils::write_endpoint_id(&mut send, endpoint_id).await?;
@@ -274,8 +274,8 @@ impl KyChannelSend {
         Ok(())
     }
 
-    fn write_datagram_header_(endpoint_id: u64, buf: &mut BytesMut) {
-        buf.put_u64(endpoint_id);
+    fn write_datagram_header_(endpoint_id: u16, buf: &mut BytesMut) {
+        buf.put_u16(endpoint_id);
     }
 
     fn max_datagram_size_(conn: &quinn::Connection) -> Option<usize> {
@@ -317,7 +317,7 @@ impl KyChannelRecv {
 
 impl KyChannel {
     pub fn new(
-        endpoint_id: u64,
+        endpoint_id: u16,
         conn: quinn::Connection,
         clients: Arc<Mutex<ClientMap>>,
         rx: mpsc::Receiver<KyRecvMsg>,

@@ -80,9 +80,9 @@ impl ClientConfig {
 }
 
 pub(crate) struct State {
-    endpoint_builders: HashMap<u64, EndpointBuilder>,
-    endpoints: HashMap<u64, Endpoint>,
-    pending_endpoints: HashMap<u64, oneshot::Sender<()>>,
+    endpoint_builders: HashMap<u16, EndpointBuilder>,
+    endpoints: HashMap<u16, Endpoint>,
+    pending_endpoints: HashMap<u16, oneshot::Sender<()>>,
 }
 
 impl State {
@@ -94,7 +94,7 @@ impl State {
         }
     }
 
-    pub(crate) async fn start_endpoint(&mut self, endpoint_id: u64) -> Result<()> {
+    pub(crate) async fn start_endpoint(&mut self, endpoint_id: u16) -> Result<()> {
         let Some(builder) = self.endpoint_builders.get(&endpoint_id) else {
             warn!("Trying to start unknown endoint {endpoint_id:X}");
             return Err(Error::EndpointUnknown { id: endpoint_id });
@@ -394,7 +394,7 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn register_endpoint(&mut self, id: u64, type_: StreamType) -> Result<()> {
+    pub async fn register_endpoint(&mut self, id: u16, type_: StreamType) -> Result<()> {
         let (register_tx, register_rx) = oneshot::channel();
 
         // Send endpoint registration
@@ -458,7 +458,7 @@ impl Connection {
         self.client_listening_addr
     }
 
-    pub fn get_uri_for_endpoint(&self, id: u64) -> Result<String> {
+    pub fn get_uri_for_endpoint(&self, id: u16) -> Result<String> {
         let port = self.client_listening_addr.port();
 
         // Only TCP is supported for now

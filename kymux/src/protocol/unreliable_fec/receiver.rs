@@ -86,7 +86,7 @@ impl Receiver {
                 }
                 KyRecvMsg::Datagram(mut buf) => {
                     assert!(buf.len() >= 20);
-                    let _endpoint_id = buf.get_u64();
+                    let _endpoint_id = buf.get_u16();
                     let raw_kypacket_seq = buf.get_u32();
                     let raw_group_seq = buf.get_u32();
 
