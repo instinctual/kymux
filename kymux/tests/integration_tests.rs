@@ -212,6 +212,8 @@ async fn stress_test() {
         .is_test(true)
         .init();
 
+    let mut next_id = 0;
+
     let (mut server, mut client) = create_connection().await;
     info!("QUIC connection ready");
 
@@ -311,7 +313,12 @@ async fn stress_test() {
                     Actor::Server => &mut server,
                 };
 
-                let endpoint = connection.register_endpoint(stream_type).await.unwrap();
+                let endpoint = next_id;
+                next_id += 1;
+                connection
+                    .register_endpoint(endpoint, stream_type)
+                    .await
+                    .unwrap();
 
                 // Map the producer and the consumer to the correct actors
                 let (producer, consumer) = match producer {
@@ -364,7 +371,12 @@ async fn stress_test() {
             (&mut server, StreamType::Input)
         };
 
-        let endpoint = connection.register_endpoint(stream_type).await.unwrap();
+        let endpoint = next_id;
+        next_id += 1;
+        connection
+            .register_endpoint(endpoint, stream_type)
+            .await
+            .unwrap();
 
         // Map the producer and the consumer to the correct actors
         let (producer, consumer) = if i % 2 == 0 {

@@ -394,9 +394,8 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn register_endpoint(&mut self, type_: StreamType) -> Result<u64> {
+    pub async fn register_endpoint(&mut self, id: u64, type_: StreamType) -> Result<()> {
         let (register_tx, register_rx) = oneshot::channel();
-        let id: u64 = rand::random();
 
         // Send endpoint registration
         let desc = EndpointDesc {
@@ -438,7 +437,7 @@ impl Connection {
 
         debug!("Local endpoint 0x{id:X} registered");
 
-        Ok(id)
+        Ok(())
     }
 
     pub async fn wait_idle(&self) {

@@ -123,8 +123,9 @@ async fn server(quic_listen_port: u16, stream_types: Vec<StreamType>) -> Result<
     let connecting = listener.accept().await?;
     let mut connection = connecting.complete_connection().await?;
 
-    for stream_type in stream_types {
-        let id = connection.register_endpoint(stream_type).await?;
+    for (id, stream_type) in stream_types.into_iter().enumerate() {
+        let id = id as _;
+        connection.register_endpoint(id, stream_type).await?;
         let uri = connection.get_uri_for_endpoint(id)?;
         info!("{:?}: {}", stream_type, uri);
     }
