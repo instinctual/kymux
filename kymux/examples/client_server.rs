@@ -75,9 +75,8 @@ async fn main() {
 
     println!("Connected");
 
-    let endpoint = 1;
-    server
-        .register_endpoint(endpoint, kymux::StreamType::Input)
+    let endpoint = server
+        .register_endpoint(None, kymux::StreamType::Input)
         .await
         .unwrap();
     println!("Endpoint {endpoint:X} registered");
@@ -95,9 +94,8 @@ async fn main() {
     let client_addr_endpoint1 = client.get_uri_for_endpoint(endpoint).unwrap();
     let server_addr_endpoint1 = server.get_uri_for_endpoint(endpoint).unwrap();
 
-    let endpoint2 = 2;
-    server
-        .register_endpoint(endpoint2, kymux::StreamType::Input)
+    let endpoint2 = server
+        .register_endpoint(None, kymux::StreamType::Input)
         .await
         .unwrap();
 
@@ -163,9 +161,8 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // Endpoint 3
-    let endpoint3 = 3;
-    server
-        .register_endpoint(endpoint3, kymux::StreamType::Input)
+    let endpoint3 = server
+        .register_endpoint(None, kymux::StreamType::Input)
         .await
         .unwrap();
 

@@ -125,7 +125,7 @@ async fn server(quic_listen_port: u16, stream_types: Vec<StreamType>) -> Result<
 
     for (id, stream_type) in stream_types.into_iter().enumerate() {
         let id = id as _;
-        connection.register_endpoint(id, stream_type).await?;
+        connection.register_endpoint(Some(id), stream_type).await?;
         let uri = connection.get_uri_for_endpoint(id)?;
         info!("{:?}: {}", stream_type, uri);
     }

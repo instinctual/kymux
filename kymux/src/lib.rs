@@ -134,6 +134,7 @@ impl Connecting {
             self.ctrlchan_tx,
             self.ctrlchan_rx,
             self.client_listener_port,
+            INITIATOR_SERVER,
         )
         .await
     }
@@ -216,6 +217,9 @@ struct Task {
     stop_tx: oneshot::Sender<()>,
 }
 
+const INITIATOR_SERVER: u16 = 0;
+const INITIATOR_CLIENT: u16 = 1;
+
 pub struct Connection {
     _conn: quinn::Connection,
     router: Arc<Router>,
@@ -227,6 +231,15 @@ pub struct Connection {
     client_listening_addr: SocketAddr,
 
     task: Option<Task>,
+
+    // Endpoint ID generation: ids can be allocated by both sides.
+    // Like Quic streams, use u16 parity to avoid collision.
+    //
+    // The parity bit is defined by INITIATOR_SERVER/INITIATOR_CLIENT.
+    //
+    // quinn example: https://github.com/quinn-rs/quinn/blob/e652b6d999f053ffe21eeea247854882ae480281/quinn-proto/src/lib.rs#L230
+    next_endpoint_index: u16,
+    initiator: u16,
 }
 
 impl Connection {
@@ -236,6 +249,7 @@ impl Connection {
         ctrlchan_tx: quinn::SendStream,
         ctrlchan_rx: quinn::RecvStream,
         client_listener_port: u16,
+        initiator: u16,
     ) -> Result<Self> {
         let state = Arc::new(Mutex::new(State::new()));
 
@@ -291,6 +305,8 @@ impl Connection {
             ctrlchan_tx: msg_tx,
             state,
             client_listening_addr,
+            next_endpoint_index: 0,
+            initiator,
             task: Some(Task {
                 handle: task_handle,
                 stop_tx: stop_task_tx,
@@ -355,6 +371,7 @@ impl Connection {
             ctrlchan_tx,
             ctrlchan_rx,
             config.client_listener_port + 1,
+            INITIATOR_CLIENT,
         )
         .await
     }
@@ -394,7 +411,15 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn register_endpoint(&mut self, id: u16, type_: StreamType) -> Result<()> {
+    pub async fn register_endpoint(&mut self, id: Option<u16>, type_: StreamType) -> Result<u16> {
+        let id = if let Some(id) = id {
+            id
+        } else {
+            let index = self.next_endpoint_index;
+            self.next_endpoint_index += 1;
+            (index << 1) | self.initiator
+        };
+
         let (register_tx, register_rx) = oneshot::channel();
 
         // Send endpoint registration
@@ -437,7 +462,7 @@ impl Connection {
 
         debug!("Local endpoint 0x{id:X} registered");
 
-        Ok(())
+        Ok(id)
     }
 
     pub async fn wait_idle(&self) {

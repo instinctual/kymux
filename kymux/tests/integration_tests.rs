@@ -212,8 +212,6 @@ async fn stress_test() {
         .is_test(true)
         .init();
 
-    let mut next_id = 0;
-
     let (mut server, mut client) = create_connection().await;
     info!("QUIC connection ready");
 
@@ -313,10 +311,8 @@ async fn stress_test() {
                     Actor::Server => &mut server,
                 };
 
-                let endpoint = next_id;
-                next_id += 1;
-                connection
-                    .register_endpoint(endpoint, stream_type)
+                let endpoint = connection
+                    .register_endpoint(None, stream_type)
                     .await
                     .unwrap();
 
@@ -371,10 +367,8 @@ async fn stress_test() {
             (&mut server, StreamType::Input)
         };
 
-        let endpoint = next_id;
-        next_id += 1;
-        connection
-            .register_endpoint(endpoint, stream_type)
+        let endpoint = connection
+            .register_endpoint(None, stream_type)
             .await
             .unwrap();
 
