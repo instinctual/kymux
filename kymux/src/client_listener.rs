@@ -2,13 +2,13 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use log::{debug, error, info, warn};
-use tokio::io::AsyncReadExt;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, Mutex},
 };
 
 use crate::control::ControlMsg;
+use crate::io_utils;
 use crate::{Error, Result};
 use crate::{Router, State};
 
@@ -50,10 +50,7 @@ impl ClientListener {
 
     async fn handle_client(&mut self, mut client: TcpStream) -> Result<()> {
         // Get Handshake
-        let mut b = [0u8; 2];
-        client.read_exact(&mut b).await?;
-
-        let endpoint_id = u16::from_be_bytes(b);
+        let endpoint_id = io_utils::read_endpoint_id(&mut client).await?;
 
         {
             // Update endpoint
