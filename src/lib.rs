@@ -5,29 +5,8 @@ use std::net::SocketAddr;
 
 mod error;
 
-pub struct Endpoint {
-}
-
-impl Endpoint {
-    pub fn client(bind_addr: SocketAddr) -> std::io::Result<Self> {
-
-    }
-
-    pub fn server(config: ServerConfig, bind_addr: SocketAddr) -> std::io::Result<Self> {
-
-    }
-
-    pub async fn connect(&self, addr: SocketAddr) -> Result<Connection, ConnectionError> {
-
-    }
-
-    pub async fn accept(&self) -> Option<Connection> {
-
-    }
-}
-
-pub struct ServerConfig {
-}
+// This abtraction does not handle the QUIC or WebTransport connection
+// creation, but only streams and datagram once the connection is created
 
 pub struct Connection {
 }
