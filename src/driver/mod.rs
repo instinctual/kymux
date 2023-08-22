@@ -29,9 +29,9 @@ pub trait SendStreamDriver {
 
     async fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError>;
 
-    async fn close(&self) -> Result<(), WriteError>;
+    async fn close(&mut self) -> Result<(), WriteError>;
 
-    fn abort(&self) -> Result<(), UnknownStreamError>;
+    fn abort(&mut self) -> Result<(), UnknownStreamError>;
 }
 
 #[async_trait]
