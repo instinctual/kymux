@@ -14,7 +14,7 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub(crate) fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
+    pub fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
         }
@@ -58,7 +58,7 @@ pub struct SendStream {
 }
 
 impl SendStream {
-    pub(crate) fn new<T: SendStreamDriver + 'static>(driver: T) -> Self {
+    pub fn new<T: SendStreamDriver + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
         }
@@ -86,7 +86,7 @@ pub struct RecvStream {
 }
 
 impl RecvStream {
-    pub(crate) fn new<T: RecvStreamDriver + 'static>(driver: T) -> Self {
+    pub fn new<T: RecvStreamDriver + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
         }
