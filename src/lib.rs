@@ -15,7 +15,9 @@ pub struct Connection {
 
 impl Connection {
     pub(crate) fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
-        Self { driver: Box::new(driver) }
+        Self {
+            driver: Box::new(driver),
+        }
     }
 
     pub async fn open_uni(&self) -> Result<SendStream, ConnectionError> {
@@ -57,7 +59,9 @@ pub struct SendStream {
 
 impl SendStream {
     pub(crate) fn new<T: SendStreamDriver + 'static>(driver: T) -> Self {
-        Self { driver: Box::new(driver) }
+        Self {
+            driver: Box::new(driver),
+        }
     }
 
     pub async fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError> {
@@ -83,7 +87,9 @@ pub struct RecvStream {
 
 impl RecvStream {
     pub(crate) fn new<T: RecvStreamDriver + 'static>(driver: T) -> Self {
-        Self { driver: Box::new(driver) }
+        Self {
+            driver: Box::new(driver),
+        }
     }
 
     pub async fn read(&mut self, buf: &mut [u8]) -> Result<Option<usize>, ReadError> {

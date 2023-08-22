@@ -4,6 +4,9 @@ use crate::{RecvStream, SendStream};
 use async_trait::async_trait;
 use bytes::Bytes;
 
+#[cfg(feature = "quinn")]
+mod quinn;
+
 #[async_trait]
 pub trait ConnectionDriver {
     async fn open_uni(&self) -> Result<SendStream, ConnectionError>;

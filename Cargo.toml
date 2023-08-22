@@ -8,4 +8,10 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.73"
 bytes = "1.4.0"
+quinn = { version = "0.10.2", optional = true }
 thiserror = "1.0.47"
+
+# https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
+[features]
+default = []
+quinn = ["dep:quinn"]
