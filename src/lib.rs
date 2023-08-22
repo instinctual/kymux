@@ -42,7 +42,7 @@ impl Connection {
         self.driver.send_datagram(data).await
     }
 
-    pub fn close(&self, error_code: u64, reason: &str) {
+    pub fn close(&self, error_code: u32, reason: &str) {
         self.driver.close(error_code, reason)
     }
 

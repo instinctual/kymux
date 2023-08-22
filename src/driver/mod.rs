@@ -18,7 +18,7 @@ pub trait ConnectionDriver {
 
     async fn send_datagram(&self, data: Bytes) -> Result<(), SendDatagramError>;
 
-    fn close(&self, error_code: u64, reason: &str);
+    fn close(&self, error_code: u32, reason: &str);
 
     fn max_datagram_size(&self) -> Option<usize>;
 }
