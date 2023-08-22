@@ -9,6 +9,11 @@ mod quinn;
 #[cfg(all(feature = "quinn", target_arch = "wasm32"))]
 compile_error!("Quinn is not available for wasm32");
 
+#[cfg(all(feature = "webtransport-js", target_arch = "wasm32"))]
+mod webtransport_js;
+#[cfg(all(feature = "webtransport-js", not(target_arch = "wasm32")))]
+compile_error!("WebTransportJS is only available for wasm32");
+
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait ConnectionDriver {
@@ -49,7 +54,7 @@ pub trait SendStreamDriver {
 
     async fn close(&mut self) -> Result<(), WriteError>;
 
-    fn abort(&mut self) -> Result<(), UnknownStreamError>;
+    async fn abort(&mut self) -> Result<(), UnknownStreamError>;
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]

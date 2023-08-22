@@ -101,8 +101,8 @@ impl SendStream {
         self.driver.close().await
     }
 
-    pub fn abort(&mut self) -> Result<(), UnknownStreamError> {
-        self.driver.abort()
+    pub async fn abort(&mut self) -> Result<(), UnknownStreamError> {
+        self.driver.abort().await
     }
 }
 

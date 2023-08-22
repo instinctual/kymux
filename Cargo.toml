@@ -11,10 +11,29 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 async-trait = "0.1.73"
 bytes = "1.4.0"
+js-sys = { version = "0.3.64", optional = true }
 quinn = { version = "0.10.2", optional = true }
 thiserror = "1.0.47"
+wasm-bindgen = { version = "0.2.87", optional = true }
+wasm-bindgen-futures = { version = "0.4.37", optional = true }
+web-sys = { version = "0.3.64", optional = true, features = [
+    "ReadableStream",
+    "ReadableStreamByobReader",
+    "ReadableStreamDefaultReader",
+    "ReadableStreamGetReaderOptions",
+    "ReadableStreamReaderMode",
+    "WebTransport",
+    "WebTransportBidirectionalStream",
+    "WebTransportCloseInfo",
+    "WebTransportDatagramDuplexStream",
+    "WebTransportReceiveStream",
+    "WebTransportSendStream",
+    "WritableStream",
+    "WritableStreamDefaultWriter",
+] }
 
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]
 default = []
 quinn = ["dep:quinn"]
+webtransport-js = ["dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys"]

@@ -103,7 +103,9 @@ impl SendStreamDriver for QuinnSendStreamDriver {
         Ok(())
     }
 
-    fn abort(&mut self) -> Result<(), UnknownStreamError> {
+    async fn abort(&mut self) -> Result<(), UnknownStreamError> {
+        // Not async, but the trait requires the method to be async, because
+        // other implementations might abort asynchronously
         self.send.reset(quinn::VarInt::from_u32(0))?;
         Ok(())
     }

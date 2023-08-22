@@ -8,6 +8,8 @@ pub enum ConnectionError {
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 pub enum SendDatagramError {
+    #[error("generic send datagram error: {msg}")]
+    Generic { msg: String },
     #[error("datagram unsupported by peer")]
     Unsupported,
     #[error("datagram too large")]
