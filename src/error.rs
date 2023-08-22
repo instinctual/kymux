@@ -2,8 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 pub enum ConnectionError {
-    #[error("generic connection error")]
-    Generic,
+    #[error("generic connection error: {msg}")]
+    Generic { msg: String },
 }
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
@@ -18,8 +18,8 @@ pub enum SendDatagramError {
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 pub enum ReadError {
-    #[error("generic read error")]
-    Generic,
+    #[error("generic read error: {msg}")]
+    Generic { msg: String },
 }
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
@@ -32,8 +32,8 @@ pub enum ReadExactError {
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 pub enum WriteError {
-    #[error("generic write error")]
-    Generic,
+    #[error("generic write error: {msg}")]
+    Generic { msg: String },
 }
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
