@@ -1,15 +1,23 @@
 use crate::error::*;
-use crate::{ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver};
+use crate::{
+    Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
+};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 
-pub struct QuinnConnectionDriver {
+impl From<quinn::Connection> for Connection {
+    fn from(value: quinn::Connection) -> Self {
+        Self::new(QuinnConnectionDriver::new(value))
+    }
+}
+
+struct QuinnConnectionDriver {
     conn: quinn::Connection,
 }
 
 impl QuinnConnectionDriver {
-    pub fn new(conn: quinn::Connection) -> Self {
+    fn new(conn: quinn::Connection) -> Self {
         Self { conn }
     }
 }
