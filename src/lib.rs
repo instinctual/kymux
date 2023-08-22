@@ -1,6 +1,8 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
 
+use std::rc::Rc;
+
 use bytes::Bytes;
 
 mod driver;
@@ -9,14 +11,15 @@ mod error;
 // This abtraction does not handle the QUIC or WebTransport connection
 // creation, but only streams and datagram once the connection is created
 
+#[derive(Clone)]
 pub struct Connection {
-    driver: Box<dyn ConnectionDriver>,
+    driver: Rc<dyn ConnectionDriver>,
 }
 
 impl Connection {
     pub fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
         Self {
-            driver: Box::new(driver),
+            driver: Rc::new(driver),
         }
     }
 
