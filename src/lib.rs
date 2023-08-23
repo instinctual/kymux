@@ -1,7 +1,7 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use bytes::Bytes;
 
@@ -13,13 +13,13 @@ mod error;
 
 #[derive(Clone)]
 pub struct Connection {
-    driver: Rc<dyn ConnectionDriver>,
+    driver: Arc<dyn ConnectionDriver + Sync + Send>,
 }
 
 impl Connection {
-    pub fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
+    pub fn new<T: ConnectionDriver + Sync + Send + 'static>(driver: T) -> Self {
         Self {
-            driver: Rc::new(driver),
+            driver: Arc::new(driver),
         }
     }
 
@@ -57,11 +57,11 @@ impl Connection {
 }
 
 pub struct SendStream {
-    driver: Box<dyn SendStreamDriver>,
+    driver: Box<dyn SendStreamDriver + Sync + Send>,
 }
 
 impl SendStream {
-    pub fn new<T: SendStreamDriver + 'static>(driver: T) -> Self {
+    pub fn new<T: SendStreamDriver + Sync + Send + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
         }
@@ -85,11 +85,11 @@ impl SendStream {
 }
 
 pub struct RecvStream {
-    driver: Box<dyn RecvStreamDriver>,
+    driver: Box<dyn RecvStreamDriver + Sync + Send>,
 }
 
 impl RecvStream {
-    pub fn new<T: RecvStreamDriver + 'static>(driver: T) -> Self {
+    pub fn new<T: RecvStreamDriver + Sync + Send + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
         }
