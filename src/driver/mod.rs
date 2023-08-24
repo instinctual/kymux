@@ -4,10 +4,13 @@ use crate::{RecvStream, SendStream};
 use async_trait::async_trait;
 use bytes::Bytes;
 
-#[cfg(feature = "quinn")]
+#[cfg(all(feature = "quinn", not(target_arch = "wasm32")))]
 mod quinn;
+#[cfg(all(feature = "quinn", target_arch = "wasm32"))]
+compile_error!("Quinn is not available for wasm32");
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait ConnectionDriver {
     async fn open_uni(&self) -> Result<SendStream, ConnectionError>;
 
@@ -26,7 +29,8 @@ pub trait ConnectionDriver {
     fn max_datagram_size(&self) -> Option<usize>;
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait SendStreamDriver {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError>;
 
@@ -37,7 +41,8 @@ pub trait SendStreamDriver {
     fn abort(&mut self) -> Result<(), UnknownStreamError>;
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait RecvStreamDriver {
     async fn read(&mut self, buf: &mut [u8]) -> Result<Option<usize>, ReadError>;
 
