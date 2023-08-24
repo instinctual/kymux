@@ -34,7 +34,18 @@ pub trait ConnectionDriver {
 pub trait SendStreamDriver {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError>;
 
-    async fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError>;
+    async fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError> {
+        let mut offset = 0;
+        while offset < buf.len() {
+            let w = self.write(&buf[offset..]).await?;
+            assert!(w <= buf.len() - offset);
+            offset += w;
+            if offset == buf.len() {
+                break;
+            }
+        }
+        Ok(())
+    }
 
     async fn close(&mut self) -> Result<(), WriteError>;
 
@@ -46,5 +57,15 @@ pub trait SendStreamDriver {
 pub trait RecvStreamDriver {
     async fn read(&mut self, buf: &mut [u8]) -> Result<Option<usize>, ReadError>;
 
-    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ReadExactError>;
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ReadExactError> {
+        let mut offset = 0;
+        while let Some(r) = self.read(&mut buf[offset..]).await? {
+            assert!(r <= buf.len() - offset);
+            offset += r;
+            if offset == buf.len() {
+                break;
+            }
+        }
+        Ok(())
+    }
 }
