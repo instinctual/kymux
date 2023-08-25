@@ -6,7 +6,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 
 mod driver;
-mod error;
+pub mod error;
 
 // This abtraction does not handle the QUIC or WebTransport connection
 // creation, but only streams and datagram once the connection is created
