@@ -338,3 +338,27 @@ impl From<JsValue> for UnknownStreamError {
         Self
     }
 }
+
+// For convenience, also provide the conversion from these errors to JsValue
+// (containing the error message). They could not yield the original JsValue,
+// which is not stored in the kyproto errors).
+//
+// This implementation could not be done by the client, since neither JsValue
+// nor kyproto errors are defined in the client crate.
+
+macro_rules! impl_from_jsvalue {
+    ($t:ty) => {
+        impl From<$t> for wasm_bindgen::JsValue {
+            fn from(value: $t) -> Self {
+                Self::from(&value.to_string())
+            }
+        }
+    };
+}
+
+impl_from_jsvalue!(ConnectionError);
+impl_from_jsvalue!(SendDatagramError);
+impl_from_jsvalue!(ReadError);
+impl_from_jsvalue!(ReadExactError);
+impl_from_jsvalue!(WriteError);
+impl_from_jsvalue!(UnknownStreamError);
