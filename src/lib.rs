@@ -58,6 +58,10 @@ impl Connection {
         self.driver.send_datagram(data).await
     }
 
+    pub async fn closed(&self) -> Result<(), ConnectionError> {
+        self.driver.closed().await
+    }
+
     pub fn close(&self, error_code: u32, reason: &str) {
         self.driver.close(error_code, reason)
     }

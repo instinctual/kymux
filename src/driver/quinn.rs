@@ -66,6 +66,14 @@ impl ConnectionDriver for QuinnConnectionDriver {
         Ok(())
     }
 
+    async fn closed(&self) -> Result<(), ConnectionError> {
+        match self.conn.closed().await {
+            quinn::ConnectionError::LocallyClosed
+            | quinn::ConnectionError::ApplicationClosed(_) => Ok(()),
+            err => Err(err.into()),
+        }
+    }
+
     fn close(&self, error_code: u32, reason: &str) {
         let var_int = quinn::VarInt::from_u32(error_code);
         self.conn.close(var_int, reason.as_bytes());

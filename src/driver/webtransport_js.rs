@@ -204,6 +204,12 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
         Ok(())
     }
 
+    async fn closed(&self) -> Result<(), ConnectionError> {
+        let promise = self.web_transport.closed();
+        let _ = JsFuture::from(promise).await?;
+        Ok(())
+    }
+
     fn close(&self, error_code: u32, reason: &str) {
         self.web_transport.close_with_close_info(
             web_sys::WebTransportCloseInfo::new()
