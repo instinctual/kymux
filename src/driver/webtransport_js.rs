@@ -42,7 +42,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
         let promise = self.web_transport.create_unidirectional_stream();
         let send_stream = JsFuture::from(promise)
             .await?
-            .dyn_into::<web_sys::WebTransportSendStream>()?;
+            .dyn_into::<web_sys::WritableStream>()?;
         let send_driver = WebTransportJSSendStreamDriver::new(send_stream);
         let send = SendStream::new(send_driver);
         Ok(send)
@@ -53,8 +53,8 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
         let bi_stream = JsFuture::from(promise)
             .await?
             .dyn_into::<web_sys::WebTransportBidirectionalStream>()?;
-        let send_driver = WebTransportJSSendStreamDriver::new(bi_stream.writable());
-        let recv_driver = WebTransportJSRecvStreamDriver::new(bi_stream.readable());
+        let send_driver = WebTransportJSSendStreamDriver::new(bi_stream.writable().into());
+        let recv_driver = WebTransportJSRecvStreamDriver::new(bi_stream.readable().into());
         let send = SendStream::new(send_driver);
         let recv = RecvStream::new(recv_driver);
         Ok((send, recv))
@@ -88,7 +88,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
         }
 
         let recv_stream = js_sys::Reflect::get(&obj, &JsValue::from("value"))?
-            .dyn_into::<web_sys::WebTransportReceiveStream>()?;
+            .dyn_into::<web_sys::ReadableStream>()?;
         let recv_driver = WebTransportJSRecvStreamDriver::new(recv_stream);
         let recv = RecvStream::new(recv_driver);
         Ok(recv)
@@ -123,8 +123,8 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
 
         let bi_stream = js_sys::Reflect::get(&obj, &JsValue::from("value"))?
             .dyn_into::<web_sys::WebTransportBidirectionalStream>()?;
-        let send_driver = WebTransportJSSendStreamDriver::new(bi_stream.writable());
-        let recv_driver = WebTransportJSRecvStreamDriver::new(bi_stream.readable());
+        let send_driver = WebTransportJSSendStreamDriver::new(bi_stream.writable().into());
+        let recv_driver = WebTransportJSRecvStreamDriver::new(bi_stream.readable().into());
         let send = SendStream::new(send_driver);
         let recv = RecvStream::new(recv_driver);
         Ok((send, recv))
@@ -204,7 +204,7 @@ struct WebTransportJSSendStreamDriver {
 }
 
 impl WebTransportJSSendStreamDriver {
-    fn new(send: web_sys::WebTransportSendStream) -> Self {
+    fn new(send: web_sys::WritableStream) -> Self {
         let writer = send.get_writer().expect("Invalid writable stream");
         Self { writer }
     }
@@ -244,7 +244,7 @@ struct WebTransportJSRecvStreamDriver {
 }
 
 impl WebTransportJSRecvStreamDriver {
-    fn new(recv: web_sys::WebTransportReceiveStream) -> Self {
+    fn new(recv: web_sys::ReadableStream) -> Self {
         let reader = recv
             .get_reader_with_options(
                 web_sys::ReadableStreamGetReaderOptions::new()
