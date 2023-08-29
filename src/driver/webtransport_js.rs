@@ -259,7 +259,9 @@ impl WebTransportJSRecvStreamDriver {
 #[async_trait(?Send)]
 impl RecvStreamDriver for WebTransportJSRecvStreamDriver {
     async fn read(&mut self, buf: &mut [u8]) -> Result<Option<usize>, ReadError> {
-        let promise = self.reader.read_with_u8_array(buf);
+        let typed_array = js_sys::Uint8Array::new(&JsValue::from(buf.len()));
+
+        let promise = self.reader.read_with_array_buffer_view(&typed_array);
         let obj = JsFuture::from(promise).await?;
         let done = js_sys::Reflect::get(&obj, &JsValue::from("done"))?
             .as_bool()
@@ -272,7 +274,10 @@ impl RecvStreamDriver for WebTransportJSRecvStreamDriver {
             .dyn_into::<js_sys::Uint8Array>()
             .expect("Unexpected read value");
 
-        Ok(Some(array.byte_length() as usize))
+        let len = array.byte_length() as usize;
+        array.copy_to(&mut buf[..len]);
+
+        Ok(Some(len))
     }
 }
 
