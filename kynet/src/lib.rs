@@ -13,21 +13,21 @@ pub mod error;
 
 #[derive(Clone)]
 pub struct Connection {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     driver: Arc<dyn ConnectionDriver + Sync + Send>,
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     driver: Arc<dyn ConnectionDriver>,
 }
 
 impl Connection {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn new<T: ConnectionDriver + Sync + Send + 'static>(driver: T) -> Self {
         Self {
             driver: Arc::new(driver),
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
         Self {
             driver: Arc::new(driver),
@@ -72,21 +72,21 @@ impl Connection {
 }
 
 pub struct SendStream {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     driver: Box<dyn SendStreamDriver + Sync + Send>,
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     driver: Box<dyn SendStreamDriver>,
 }
 
 impl SendStream {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn new<T: SendStreamDriver + Sync + Send + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn new<T: SendStreamDriver + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
@@ -111,21 +111,21 @@ impl SendStream {
 }
 
 pub struct RecvStream {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     driver: Box<dyn RecvStreamDriver + Sync + Send>,
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     driver: Box<dyn RecvStreamDriver>,
 }
 
 impl RecvStream {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn new<T: RecvStreamDriver + Sync + Send + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn new<T: RecvStreamDriver + 'static>(driver: T) -> Self {
         Self {
             driver: Box::new(driver),
