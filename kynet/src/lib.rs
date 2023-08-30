@@ -1,6 +1,9 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
 
+#[cfg(target_family = "wasm")]
+use std::rc::Rc;
+#[cfg(not(target_family = "wasm"))]
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -16,7 +19,7 @@ pub struct Connection {
     #[cfg(not(target_family = "wasm"))]
     driver: Arc<dyn ConnectionDriver + Sync + Send>,
     #[cfg(target_family = "wasm")]
-    driver: Arc<dyn ConnectionDriver>,
+    driver: Rc<dyn ConnectionDriver>,
 }
 
 impl Connection {
@@ -30,7 +33,7 @@ impl Connection {
     #[cfg(target_family = "wasm")]
     pub fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
         Self {
-            driver: Arc::new(driver),
+            driver: Rc::new(driver),
         }
     }
 
