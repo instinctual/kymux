@@ -9,6 +9,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+kynet = { version = "0.1", path = "../kynet", optional = true }
 tokio = { version = "1.32.0", features = ["rt"], optional = true }
 wasm-bindgen = { version = "0.2.87", optional = true }
 wasm-bindgen-futures = { version = "0.4.37", optional = true }
@@ -17,9 +18,11 @@ wasm-bindgen-futures = { version = "0.4.37", optional = true }
 [features]
 default = []
 tokio = [
+    "kynet/quinn",
     "dep:tokio",
 ]
 js = [
+    "kynet/webtransport-js",
     "dep:wasm-bindgen",
     "dep:wasm-bindgen-futures",
 ]
