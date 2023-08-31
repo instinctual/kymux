@@ -32,7 +32,7 @@ enum KymuxError {
     #[error("Certificate error: {0}")]
     CertError(String),
     #[error("Certificate store error: {0}")]
-    CertStoreError(#[from] webpki::Error),
+    CertStoreError(#[from] rustls::Error),
     #[error("I/O error")]
     Io(#[from] std::io::Error),
 }
