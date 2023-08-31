@@ -1,6 +1,16 @@
 use std::future::Future;
 
 #[cfg(all(feature = "tokio-rt", not(target_family = "wasm")))]
+pub trait NonWasmSend: Send {}
+#[cfg(all(feature = "tokio-rt", not(target_family = "wasm")))]
+impl<T: Send> NonWasmSend for T {}
+
+#[cfg(all(feature = "js", target_family = "wasm"))]
+pub trait NonWasmSend {}
+#[cfg(all(feature = "js", target_family = "wasm"))]
+impl<T> NonWasmSend for T {}
+
+#[cfg(all(feature = "tokio-rt", not(target_family = "wasm")))]
 pub(crate) fn spawn<F>(future: F)
 where
     F: Future<Output = ()> + Send + 'static,

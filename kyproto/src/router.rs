@@ -1,0 +1,438 @@
+#![allow(unused)] // TODO remove
+
+use crate::error::EndpointAlreadyRegistered;
+use crate::runtime;
+use crate::util::{KyArc, KyMutex};
+
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::future::Future;
+
+use bytes::{BufMut, Bytes, BytesMut};
+use kynet::error::*;
+use kynet::{Connection, RecvStream, SendStream};
+#[allow(unused)]
+use log::{debug, error, info, warn};
+use thiserror::Error;
+use tokio::sync::{mpsc, oneshot};
+
+type ClientMap = HashMap<u16, RouterClient>;
+
+#[derive(Debug, Error)]
+#[error("router error: {0}")]
+pub(crate) struct RouterError(String);
+
+pub(crate) enum KyRecvMsg {
+    AcceptUni(RecvStream),
+    AcceptBi(SendStream, RecvStream),
+    Datagram(Bytes),
+}
+
+pub(crate) struct RouterClient {
+    tx: mpsc::Sender<KyRecvMsg>,
+}
+
+pub(crate) struct Task {
+    name: String,
+    tx: oneshot::Sender<()>,
+}
+
+pub(crate) struct Router {
+    conn: Connection,
+    clients: KyArc<KyMutex<ClientMap>>,
+    tasks: KyMutex<Vec<Task>>,
+}
+
+impl Router {
+    pub fn new(conn: Connection) -> Self {
+        Self {
+            conn,
+            clients: KyArc::new(KyMutex::new(HashMap::new())),
+            tasks: KyMutex::new(Vec::new()),
+        }
+    }
+
+    fn spawn_task<F>(task: F, name: String) -> Task
+    where
+        F: Future<Output = ()> + runtime::NonWasmSend + 'static,
+    {
+        let (tx, rx) = oneshot::channel();
+        let task_name = name.clone();
+
+        runtime::spawn(async move {
+            tokio::select! {
+                _ = rx => {
+                    debug!("Task {task_name} interrupted");
+                }
+                _ = task => {
+                    debug!("Task {task_name} terminated");
+                }
+            }
+        });
+
+        Task { name, tx }
+    }
+
+    pub fn start(&self) {
+        let conn = self.conn.clone();
+        let clients = self.clients.clone();
+        let accept_uni_task = Self::spawn_task(
+            async move {
+                if let Err(err) = Self::accept_channels_uni(conn, clients).await {
+                    error!("{err:?}");
+                }
+            },
+            "accept_uni".to_string(),
+        );
+
+        let conn = self.conn.clone();
+        let clients = self.clients.clone();
+        let accept_bi_task = Self::spawn_task(
+            async move {
+                if let Err(err) = Self::accept_channels_bi(conn, clients).await {
+                    error!("{err:?}");
+                }
+            },
+            "accept_bi".to_string(),
+        );
+
+        let conn = self.conn.clone();
+        let clients = self.clients.clone();
+        let recv_datagrams_task = Self::spawn_task(
+            async move {
+                if let Err(err) = Self::recv_channels_datagrams(conn, clients).await {
+                    error!("{err:?}");
+                }
+            },
+            "recv_datagrams".to_string(),
+        );
+
+        *self.tasks.lock() = vec![accept_uni_task, accept_bi_task, recv_datagrams_task];
+    }
+
+    pub fn stop(&self) {
+        let tasks = {
+            let mut tasks = self.tasks.lock();
+            std::mem::take(&mut *tasks)
+        };
+
+        for task in tasks {
+            let ret = task.tx.send(());
+            if ret.is_err() {
+                warn!("Task {} seems to be already stopped", task.name);
+            }
+        }
+    }
+
+    pub fn register(&self, endpoint_id: u16) -> Result<KyChannel, EndpointAlreadyRegistered> {
+        let (tx, rx) = mpsc::channel(16);
+
+        let mut clients = self.clients.lock();
+        match clients.entry(endpoint_id) {
+            Entry::Occupied(_) => return Err(EndpointAlreadyRegistered { endpoint_id }),
+            Entry::Vacant(entry) => entry.insert(RouterClient { tx }),
+        };
+
+        Ok(KyChannel::new(
+            endpoint_id,
+            self.conn.clone(),
+            self.clients.clone(),
+            rx,
+        ))
+    }
+
+    async fn read_endpoint_id(recv: &mut RecvStream) -> Result<u16, ReadExactError> {
+        let mut endpoint_id_raw = [0u8; 2];
+        recv.read_exact(&mut endpoint_id_raw).await?;
+        let endpoint = u16::from_be_bytes(endpoint_id_raw);
+        Ok(endpoint)
+    }
+
+    async fn write_endpoint_id(send: &mut SendStream, endpoint_id: u16) -> Result<(), WriteError> {
+        send.write_all(&endpoint_id.to_be_bytes()).await
+    }
+
+    async fn accept_channels_uni(
+        conn: Connection,
+        clients: KyArc<KyMutex<ClientMap>>,
+    ) -> Result<(), RouterError> {
+        loop {
+            let mut recv = conn
+                .accept_uni()
+                .await
+                .map_err(|err| RouterError(format!("accept_uni() failed: {err:?}")))?;
+            match Self::read_endpoint_id(&mut recv).await {
+                Ok(endpoint_id) => {
+                    let tx = if let Some(client) = clients.lock().get_mut(&endpoint_id) {
+                        Some(client.tx.clone())
+                    } else {
+                        None
+                    };
+
+                    if let Some(tx) = tx {
+                        tx.send(KyRecvMsg::AcceptUni(recv)).await.map_err(|err| {
+                            RouterError(format!("accept_uni: channel closed: {err:?}"))
+                        })?;
+                    } else {
+                        Err(RouterError(format!(
+                            "accept_uni: unknown channel id: {endpoint_id}"
+                        )))?;
+                    }
+                }
+                Err(err) => {
+                    // This is expected if the stream is already reset
+                    debug!("accept_uni: read endpoint error: {err:?}");
+                }
+            };
+        }
+    }
+
+    async fn accept_channels_bi(
+        conn: Connection,
+        clients: KyArc<KyMutex<ClientMap>>,
+    ) -> Result<(), RouterError> {
+        loop {
+            let (send, mut recv) = conn
+                .accept_bi()
+                .await
+                .map_err(|err| RouterError(format!("accept_bi() failed: {err:?}")))?;
+            match Self::read_endpoint_id(&mut recv).await {
+                Ok(endpoint_id) => {
+                    let tx = if let Some(client) = clients.lock().get_mut(&endpoint_id) {
+                        Some(client.tx.clone())
+                    } else {
+                        None
+                    };
+
+                    if let Some(tx) = tx {
+                        tx.send(KyRecvMsg::AcceptBi(send, recv))
+                            .await
+                            .map_err(|err| {
+                                RouterError(format!("accept_bi: channel closed: {err:?}"))
+                            })?;
+                    } else {
+                        Err(RouterError(format!(
+                            "accept_bi: unknown channel id: {endpoint_id}"
+                        )))?;
+                    }
+                }
+                Err(err) => {
+                    // This is expected if the stream is already reset
+                    debug!("accept_bi: read endpoint error: {err:?}");
+                }
+            };
+        }
+    }
+
+    async fn recv_channels_datagrams(
+        conn: Connection,
+        clients: KyArc<KyMutex<ClientMap>>,
+    ) -> Result<(), RouterError> {
+        loop {
+            let datagram = conn
+                .read_datagram()
+                .await
+                .map_err(|err| RouterError(format!("read_datagram() failed: {err:?}")))?;
+            if datagram.len() >= 2 {
+                let endpoint_id = u16::from_be_bytes((&datagram[..2]).try_into().unwrap());
+                let tx = if let Some(client) = clients.lock().get_mut(&endpoint_id) {
+                    Some(client.tx.clone())
+                } else {
+                    None
+                };
+
+                if let Some(tx) = tx {
+                    tx.send(KyRecvMsg::Datagram(datagram))
+                        .await
+                        .map_err(|err| {
+                            RouterError(format!("recv_datagram: channel closed: {err:?}"))
+                        })?;
+                } else {
+                    // Not a hard error, datagrams may be delivered at any
+                    // time, including once the endpoint has been removed
+                    warn!("Received a datagram with an unknown id: {endpoint_id:X}");
+                }
+            } else {
+                warn!("Datagram endpoint id too short, dropping");
+            }
+        }
+    }
+}
+
+pub(crate) struct KyChannel {
+    endpoint_id: u16,
+    conn: Connection,
+    rx: mpsc::Receiver<KyRecvMsg>,
+    dropper: KyChannelDropper,
+}
+
+pub(crate) struct KyChannelSend {
+    endpoint_id: u16,
+    conn: Connection,
+    dropper: KyArc<KyChannelDropper>,
+}
+
+pub(crate) struct KyChannelRecv {
+    endpoint_id: u16,
+    conn: Connection,
+    rx: mpsc::Receiver<KyRecvMsg>,
+    dropper: KyArc<KyChannelDropper>,
+}
+
+struct KyChannelDropper {
+    endpoint_id: u16,
+    clients: KyArc<KyMutex<ClientMap>>, // to implement Drop
+}
+
+impl KyChannelSend {
+    async fn open_uni_(conn: &Connection, endpoint_id: u16) -> Result<SendStream, ConnectionError> {
+        let mut send = conn.open_uni().await?;
+        Router::write_endpoint_id(&mut send, endpoint_id)
+            .await
+            .map_err(|err| ConnectionError::Generic {
+                msg: format!("Could not write endpoint_id {endpoint_id}: {err:?}"),
+            })?;
+        Ok(send)
+    }
+
+    async fn open_bi_(
+        conn: &Connection,
+        endpoint_id: u16,
+    ) -> Result<(SendStream, RecvStream), ConnectionError> {
+        let (mut send, recv) = conn.open_bi().await?;
+        Router::write_endpoint_id(&mut send, endpoint_id)
+            .await
+            .map_err(|err| ConnectionError::Generic {
+                msg: format!("Could not write endpoint_id {endpoint_id}: {err:?}"),
+            })?;
+        Ok((send, recv))
+    }
+
+    async fn send_datagram_(conn: &Connection, data: Bytes) -> Result<(), SendDatagramError> {
+        conn.send_datagram(data).await
+    }
+
+    fn max_datagram_size_(conn: &Connection) -> Option<usize> {
+        conn.max_datagram_size()
+    }
+
+    fn write_datagram_header_(endpoint_id: u16, buf: &mut BytesMut) {
+        buf.put_u16(endpoint_id);
+    }
+
+    pub async fn open_uni(&self) -> Result<SendStream, ConnectionError> {
+        Self::open_uni_(&self.conn, self.endpoint_id).await
+    }
+
+    pub async fn open_bi(&self) -> Result<(SendStream, RecvStream), ConnectionError> {
+        Self::open_bi_(&self.conn, self.endpoint_id).await
+    }
+
+    pub async fn send_datagram(&self, data: Bytes) -> Result<(), SendDatagramError> {
+        Self::send_datagram_(&self.conn, data).await
+    }
+
+    pub fn max_datagram_size(&self) -> Option<usize> {
+        Self::max_datagram_size_(&self.conn)
+    }
+
+    pub fn write_datagram_header(&self, buf: &mut BytesMut) {
+        Self::write_datagram_header_(self.endpoint_id, buf);
+    }
+}
+
+impl KyChannelRecv {
+    async fn recv_(rx: &mut mpsc::Receiver<KyRecvMsg>) -> Result<KyRecvMsg, RouterError> {
+        rx.recv()
+            .await
+            .ok_or_else(|| RouterError("Ky channel closed".to_string()))
+    }
+
+    pub async fn recv(&mut self) -> Result<KyRecvMsg, RouterError> {
+        Self::recv_(&mut self.rx).await
+    }
+}
+
+impl KyChannel {
+    pub(crate) fn new(
+        endpoint_id: u16,
+        conn: Connection,
+        clients: KyArc<KyMutex<ClientMap>>,
+        rx: mpsc::Receiver<KyRecvMsg>,
+    ) -> Self {
+        Self {
+            endpoint_id,
+            conn,
+            rx,
+            dropper: KyChannelDropper {
+                endpoint_id,
+                clients,
+            },
+        }
+    }
+
+    pub async fn open_uni(&self) -> Result<SendStream, ConnectionError> {
+        KyChannelSend::open_uni_(&self.conn, self.endpoint_id).await
+    }
+
+    pub async fn open_bi(&self) -> Result<(SendStream, RecvStream), ConnectionError> {
+        KyChannelSend::open_bi_(&self.conn, self.endpoint_id).await
+    }
+
+    pub async fn recv(&mut self) -> Result<KyRecvMsg, RouterError> {
+        KyChannelRecv::recv_(&mut self.rx).await
+    }
+
+    pub async fn send_datagram(&self, data: Bytes) -> Result<(), SendDatagramError> {
+        KyChannelSend::send_datagram_(&self.conn, data).await
+    }
+
+    pub fn max_datagram_size(&self) -> Option<usize> {
+        KyChannelSend::max_datagram_size_(&self.conn)
+    }
+
+    pub fn write_datagram_header(&self, buf: &mut BytesMut) {
+        KyChannelSend::write_datagram_header_(self.endpoint_id, buf);
+    }
+
+    pub fn into_split(self) -> (KyChannelRecv, KyChannelSend) {
+        let KyChannel {
+            endpoint_id,
+            conn,
+            rx,
+            dropper,
+        } = self;
+
+        let dropper = KyArc::new(dropper);
+
+        let send = KyChannelSend {
+            endpoint_id,
+            conn: conn.clone(),
+            dropper: dropper.clone(),
+        };
+
+        let recv = KyChannelRecv {
+            endpoint_id,
+            conn,
+            rx,
+            dropper,
+        };
+
+        (recv, send)
+    }
+}
+
+impl Drop for KyChannelDropper {
+    fn drop(&mut self) {
+        // No async drop
+        let clients = self.clients.clone();
+        let endpoint_id = self.endpoint_id;
+        runtime::spawn(async move {
+            // Remove registration
+            let mut clients = clients.lock();
+            let ret = clients.remove(&endpoint_id);
+            // An id must not be reused, so it's not racy
+            assert!(ret.is_some());
+        });
+    }
+}
