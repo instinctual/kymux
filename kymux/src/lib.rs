@@ -1,492 +1,336 @@
-use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Arc;
+mod error;
+
+#[cfg(feature = "ipc")]
+mod ipc;
+
 use std::time::Duration;
 
-use log::{debug, error, info, warn};
-use tokio::{
-    sync::{mpsc, oneshot, Mutex},
-    task::{self, JoinHandle},
+pub use error::{Error, Result};
+pub use kyproto::{
+    AVPacket, AudioClientEndpoint, AudioServerEndpoint, InputEndpoint, InputPacket,
+    ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint, VideoProtocol,
+    VideoServerEndpoint,
 };
 
-mod client_listener;
-mod control;
-mod endpoint;
-mod error;
-mod io_utils;
-mod protocol;
-mod router;
-mod stream;
-
-pub use endpoint::EndpointDesc;
-pub use error::{Error, Result};
-pub use stream::{StreamOwner, StreamType, VideoProtocol};
-
-use client_listener::ClientListener;
-use control::{ControlMsg, ControlTask};
-use endpoint::{Endpoint, EndpointBuilder};
-use router::Router;
-
+#[allow(dead_code)]
 const KYMUX_LOCAL_CLIENTS_PORT: u16 = 9090;
 
-pub struct ServerConfig {
-    pub addr: SocketAddr,
-    pub cert_chain: Vec<rustls::Certificate>,
-    pub private_key: rustls::PrivateKey,
-    pub client_listener_port: u16,
-}
+#[allow(dead_code)]
+const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
-impl ServerConfig {
-    pub fn new(
-        addr: SocketAddr,
-        cert_chain: Vec<rustls::Certificate>,
+pub enum ServerConfig {
+    #[cfg(feature = "backend-quinn")]
+    Quic {
+        addr: std::net::SocketAddr,
+        certificate: rustls::Certificate,
         private_key: rustls::PrivateKey,
-    ) -> Self {
-        Self {
-            addr,
-            cert_chain,
-            private_key,
-            client_listener_port: KYMUX_LOCAL_CLIENTS_PORT,
-        }
-    }
-
-    pub fn client_listener_port(&mut self, client_listener_port: u16) -> &mut Self {
-        self.client_listener_port = client_listener_port;
-        self
-    }
+    },
+    #[cfg(feature = "backend-wtransport")]
+    Wtransport {
+        addr: std::net::SocketAddr,
+        certificate: Vec<u8>,
+        private_key: Vec<u8>,
+    },
 }
 
-pub struct ClientConfig {
-    pub addr: SocketAddr,
-    pub roots: rustls::RootCertStore,
-    pub server_name: String,
-    pub client_listener_port: u16,
+pub enum ClientConfig {
+    #[cfg(feature = "backend-quinn")]
+    Quic {
+        addr: std::net::SocketAddr,
+        roots: rustls::RootCertStore,
+        server_name: String,
+    },
+    #[cfg(feature = "backend-webtransport-js")]
+    WebTransport {
+        url: String,
+        certificate_hash_algorithm: String,
+        certificate_hash: String,
+    },
 }
 
-impl ClientConfig {
-    pub fn new(addr: SocketAddr, roots: rustls::RootCertStore, server_name: &str) -> Self {
-        Self {
-            addr,
-            server_name: server_name.into(),
-            roots,
-            client_listener_port: KYMUX_LOCAL_CLIENTS_PORT,
-        }
-    }
-
-    pub fn client_listener_port(&mut self, client_listener_port: u16) -> &mut Self {
-        self.client_listener_port = client_listener_port;
-        self
-    }
-}
-
-pub(crate) struct State {
-    endpoint_builders: HashMap<u16, EndpointBuilder>,
-    endpoints: HashMap<u16, Endpoint>,
-    pending_endpoints: HashMap<u16, oneshot::Sender<()>>,
-}
-
-impl State {
-    fn new() -> Self {
-        Self {
-            endpoint_builders: HashMap::new(),
-            endpoints: HashMap::new(),
-            pending_endpoints: HashMap::new(),
-        }
-    }
-
-    pub(crate) async fn start_endpoint(&mut self, endpoint_id: u16) -> Result<()> {
-        let Some(builder) = self.endpoint_builders.get(&endpoint_id) else {
-            warn!("Trying to start unknown endoint {endpoint_id:X}");
-            return Err(Error::EndpointUnknown { id: endpoint_id });
-        };
-
-        if !builder.ready() {
-            return Ok(());
-        }
-
-        let builder = self.endpoint_builders.remove(&endpoint_id).unwrap();
-        self.endpoints.insert(endpoint_id, builder.build().await?);
-
-        Ok(())
-    }
-}
-
-pub struct Connecting {
-    connection: quinn::Connection,
-    endpoint: quinn::Endpoint,
-    ctrlchan_tx: quinn::SendStream,
-    ctrlchan_rx: quinn::RecvStream,
-    client_listener_port: u16,
-}
-
-impl Connecting {
-    pub async fn complete_connection(mut self) -> Result<Connection> {
-        io_utils::write_msg(&mut self.ctrlchan_tx, ControlMsg::ConnectionAccepted)
-            .await
-            .map_err(|err| {
-                error!("Failed to send Hello on ControlChan: {err:?}");
-                Error::EndpointCtrlChanOpenFailed
-            })?;
-
-        Connection::new(
-            self.connection,
-            self.endpoint,
-            self.ctrlchan_tx,
-            self.ctrlchan_rx,
-            self.client_listener_port,
-            INITIATOR_SERVER,
-        )
-        .await
-    }
+#[cfg(feature = "server")]
+enum ConnectionListenerServer {
+    #[cfg(feature = "backend-quinn")]
+    Quinn(kyproto::quinn::QuinnServer),
+    #[cfg(feature = "backend-wtransport")]
+    Wtransport(kyproto::wtransport::WTransportServer),
 }
 
 // Accept a single connection
+#[cfg(feature = "server")]
 pub struct ConnectionListener {
-    endpoint: quinn::Endpoint,
-    client_listener_port: u16,
+    endpoint: ConnectionListenerServer,
 }
 
+#[cfg(feature = "server")]
 impl ConnectionListener {
     pub async fn new(config: ServerConfig) -> Result<Self> {
         // Setup quinn to accept connections
-        let mut quinn_config =
-            quinn::ServerConfig::with_single_cert(config.cert_chain, config.private_key)?;
+        let endpoint = match config {
+            #[cfg(feature = "backend-quinn")]
+            ServerConfig::Quic {
+                addr,
+                certificate,
+                private_key,
+            } => {
+                let endpoint = kyproto::KyProto::quinn_start_server_on_addr(
+                    addr,
+                    certificate.into(),
+                    private_key.into(),
+                    &kyproto::quinn::QuinnServerOptions {
+                        keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
+                        ..Default::default()
+                    },
+                )?;
 
-        let mut transport_config = quinn::TransportConfig::default();
-        transport_config.keep_alive_interval(Some(Duration::from_secs(5)));
+                ConnectionListenerServer::Quinn(endpoint)
+            }
+            #[cfg(feature = "backend-wtransport")]
+            ServerConfig::Wtransport {
+                addr,
+                certificate,
+                private_key,
+            } => {
+                let endpoint = kyproto::KyProto::wtransport_start_server_on_addr(
+                    addr,
+                    kyproto::cert::Certificate::new(certificate),
+                    kyproto::cert::PrivateKey::new(private_key),
+                    &kyproto::wtransport::WTransportServerOptions {
+                        keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
+                        ..Default::default()
+                    },
+                )?;
 
-        quinn_config.transport_config(Arc::new(transport_config));
+                ConnectionListenerServer::Wtransport(endpoint)
+            }
+        };
 
-        let endpoint = quinn::Endpoint::server(quinn_config, config.addr)
-            .map_err(|err| Error::EndpointCreateFailed { source: err })?;
-
-        Ok(Self {
-            endpoint,
-            client_listener_port: config.client_listener_port,
-        })
+        Ok(Self { endpoint })
     }
 
-    pub async fn accept(self) -> Result<Connecting> {
-        let connecting = self
-            .endpoint
-            .accept()
-            .await
-            .ok_or(Error::EndpointAcceptFailed)?;
+    pub async fn accept(self) -> Result<Connection> {
+        let connection = match self.endpoint {
+            #[cfg(feature = "backend-quinn")]
+            ConnectionListenerServer::Quinn(endpoint) => endpoint.accept().await?,
+            #[cfg(feature = "backend-wtransport")]
+            ConnectionListenerServer::Wtransport(endpoint) => endpoint.accept().await?,
+        };
 
-        info!("Waiting for QUIC connection");
-        let connection = connecting.await.map_err(|err| {
-            error!("Failed to accept connection: {err:?}");
-            Error::EndpointAcceptFailed
-        })?;
-
-        info!("Got new peer {addr}", addr = connection.remote_address());
-
-        // Wait for control channel + Read Authentication request
-        debug!("Server: Open control channel");
-        let (ctrlchan_tx, mut ctrlchan_rx) = connection.accept_bi().await.map_err(|err| {
-            error!("Failed to open ControlChan: {err:?}");
-            Error::EndpointCtrlChanOpenFailed
-        })?;
-
-        let msg: ControlMsg = io_utils::read_msg(&mut ctrlchan_rx).await?;
-        if let ControlMsg::Authenticate = msg {
-            debug!("ControlChan: got Authenticate");
-        } else {
-            error!(
-                "ControlChan: Authenticate was expected, but another message has been received instead"
-            );
-            return Err(Error::EndpointCtrlChanOpenFailed);
-        }
-
-        Ok(Connecting {
+        Connection::new(
             connection,
-            endpoint: self.endpoint,
-            ctrlchan_tx,
-            ctrlchan_rx,
-            client_listener_port: self.client_listener_port,
-        })
-    }
-
-    pub async fn wait_idle(&self) {
-        self.endpoint.wait_idle().await
+            ConnectionParam {
+                #[cfg(feature = "ipc")]
+                local_clients_port: KYMUX_LOCAL_CLIENTS_PORT + 1,
+            },
+        )
+        .await
     }
 }
 
-struct Task {
-    handle: JoinHandle<()>,
-    stop_tx: oneshot::Sender<()>,
+struct ConnectionParam {
+    #[cfg(feature = "ipc")]
+    local_clients_port: u16,
 }
-
-const INITIATOR_SERVER: u16 = 0;
-const INITIATOR_CLIENT: u16 = 1;
 
 pub struct Connection {
-    _conn: quinn::Connection,
-    router: Arc<Router>,
-    endpoint: quinn::Endpoint,
-
-    ctrlchan_tx: mpsc::Sender<ControlMsg>,
-
-    state: Arc<Mutex<State>>,
-    client_listening_addr: SocketAddr,
-
-    task: Option<Task>,
-
-    // Endpoint ID generation: ids can be allocated by both sides.
-    // Like Quic streams, use u16 parity to avoid collision.
-    //
-    // The parity bit is defined by INITIATOR_SERVER/INITIATOR_CLIENT.
-    //
-    // quinn example: https://github.com/quinn-rs/quinn/blob/e652b6d999f053ffe21eeea247854882ae480281/quinn-proto/src/lib.rs#L230
-    next_endpoint_index: u16,
-    initiator: u16,
+    connection: kyproto::KyProto,
+    #[cfg(feature = "ipc")]
+    ipc: ipc::IpcHandler,
 }
 
 impl Connection {
-    async fn new(
-        conn: quinn::Connection,
-        endpoint: quinn::Endpoint,
-        ctrlchan_tx: quinn::SendStream,
-        ctrlchan_rx: quinn::RecvStream,
-        client_listener_port: u16,
-        initiator: u16,
-    ) -> Result<Self> {
-        let state = Arc::new(Mutex::new(State::new()));
-
-        // Start control task
-        let (msg_tx, msg_rx) = mpsc::channel(32);
-
-        let ctrl_task = ControlTask::new(
-            state.clone(),
-            Box::new(ctrlchan_tx),
-            Box::new(ctrlchan_rx),
-            msg_tx.clone(),
-            msg_rx,
-        );
-
-        let mut router = Router::new(conn.clone());
-        router.start().await;
-        let router = Arc::new(router);
-
-        // Listen for local clients
-        let (mut client_listener, client_listening_addr) = ClientListener::new(
-            router.clone(),
-            state.clone(),
-            msg_tx.clone(),
-            client_listener_port,
-        )
-        .await
-        .ok_or(Error::EndpointClientListenFailed)?;
-
-        // Run all tasks concurrently. Each task's run() is expected to end only if something
-        // wrong has happened.
-        let (stop_task_tx, stop_task_rx) = oneshot::channel();
-
-        let task_handle = task::spawn(async move {
-            tokio::select! {
-                _ = stop_task_rx => {
-                    debug!("Connection task stop requested");
-                }
-                ret = ctrl_task.run() => {
-                    debug!("ControlChan task completed: {ret:?}");
-                }
-                ret = client_listener.run() => {
-                    debug!("ClientListener task completed: {ret:?}");
-                }
-            }
-
-            debug!("Connection task stopped");
-        });
-
+    #[allow(unused_variables)]
+    async fn new(connection: kyproto::KyProto, params: ConnectionParam) -> Result<Self> {
         Ok(Self {
-            _conn: conn,
-            router,
-            endpoint,
-            ctrlchan_tx: msg_tx,
-            state,
-            client_listening_addr,
-            next_endpoint_index: 0,
-            initiator,
-            task: Some(Task {
-                handle: task_handle,
-                stop_tx: stop_task_tx,
-            }),
+            connection,
+            #[cfg(feature = "ipc")]
+            ipc: ipc::IpcHandler::new(params.local_clients_port).await?,
         })
     }
 
-    pub async fn connect(config: ClientConfig) -> Result<Self> {
-        // Connect to Quic socket
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-
-        let mut endpoint = quinn::Endpoint::client(bind_addr)
-            .map_err(|err| Error::EndpointCreateFailed { source: err })?;
-
-        let quinn_config = quinn::ClientConfig::with_root_certificates(config.roots);
-        endpoint.set_default_client_config(quinn_config);
-
-        let connecting = endpoint
-            .connect(config.addr, &config.server_name)
-            .map_err(|err| {
-                error!("Failed to connect (Idle => Connecting): {err:?}");
-                Error::EndpointConnectFailed
-            })?;
-
-        let conn = connecting.await.map_err(|err| {
-            error!("Failed to connect (Connecting => Connected): {err:?}");
-            Error::EndpointConnectFailed
-        })?;
-
-        info!("Connected to peer {addr}", addr = conn.remote_address());
-
-        // Open control channel with Authentication request
-        debug!("Client: Accept control channel");
-        let (mut ctrlchan_tx, mut ctrlchan_rx) = conn.open_bi().await.map_err(|err| {
-            error!("Failed to accept ControlChan: {err:?}");
-            Error::EndpointCtrlChanOpenFailed
-        })?;
-
-        io_utils::write_msg(&mut ctrlchan_tx, ControlMsg::Authenticate)
-            .await
-            .map_err(|err| {
-                error!("Failed to send Hello on ControlChan: {err:?}");
-                Error::EndpointCtrlChanOpenFailed
-            })?;
-
-        // Wait for connection ack
-        let msg: ControlMsg = io_utils::read_msg(&mut ctrlchan_rx).await?;
-        if let ControlMsg::ConnectionAccepted = msg {
-            debug!("ControlChan: got ConnectionAccepted");
-        } else {
-            error!(
-                "ControlChan: ConnectionAccepted was expected, but another message has been received instead"
-            );
-            return Err(Error::EndpointConnectRejected);
-        }
-
-        // Apply an offset when Kymux is used as the Connection intiator.
-        // It allows the Client and the Host to run on the same machine.
-        Self::new(
-            conn,
-            endpoint,
-            ctrlchan_tx,
-            ctrlchan_rx,
-            config.client_listener_port + 1,
-            INITIATOR_CLIENT,
-        )
-        .await
-    }
-
-    pub async fn stop(&mut self) -> Result<()> {
-        // Stop main task
-        let Some(task) = self.task.take() else {
-            return Err(Error::EndpointStopped);
-        };
-
-        debug!("Stop main task");
-        let ret = task.stop_tx.send(());
-        if ret.is_err() {
-            // Can happen if task has stop by itself
-            debug!("Failed to send stop to main task");
-        }
-
-        task.handle.await.map_err(|err| {
-            warn!("Failed to join main task: {err:?}");
-            Error::EndpointStopFailed
-        })?;
-
-        debug!("Main task stopped");
-
-        // Stop endpoints
-        {
-            let _endpoints: Vec<_> = {
-                let mut state = self.state.lock().await;
-                state.endpoints.drain().map(|(_, v)| v).collect()
-            };
-
-            // TODO stop tasks explicitly?
-        }
-
-        self.router.stop().await?;
+    pub async fn stop(&self) -> Result<()> {
+        #[cfg(feature = "ipc")]
+        self.ipc.stop().await?;
 
         Ok(())
     }
 
-    pub async fn register_endpoint(&mut self, id: Option<u16>, type_: StreamType) -> Result<u16> {
-        let id = if let Some(id) = id {
-            id
-        } else {
-            let index = self.next_endpoint_index;
-            self.next_endpoint_index += 1;
-            (index << 1) | self.initiator
-        };
-
-        let (register_tx, register_rx) = oneshot::channel();
-
-        // Send endpoint registration
-        let desc = EndpointDesc {
-            id,
-            owner: StreamOwner::Local,
-            type_,
-        };
-
-        let endpoint_builder = EndpointBuilder::new(desc);
-
-        {
-            let mut state = self.state.lock().await;
-            state.pending_endpoints.insert(id, register_tx);
-        }
-
-        // Wait for peer to acknowledge the registration
-        self.ctrlchan_tx
-            .send(ControlMsg::RegisterEndpoint {
-                id,
-                type_: desc.type_,
-            })
-            .await
-            .map_err(|_| Error::EndpointStopped)?;
-
-        register_rx.await.map_err(|_| {
-            error!("Couldn't get RegisterEndpoint completion");
-            Error::EndpointStopped
-        })?;
-
-        // Store endpoint
-        {
-            let mut state = self.state.lock().await;
-            let ret = state.endpoint_builders.insert(id, endpoint_builder);
-            if ret.is_some() {
-                error!("Trying to register endpoint {id:X} twice");
-                return Err(Error::FatalError);
+    pub async fn connect(config: ClientConfig) -> Result<Self> {
+        let connection = match config {
+            #[cfg(feature = "backend-quinn")]
+            ClientConfig::Quic {
+                addr,
+                roots,
+                server_name,
+            } => {
+                kyproto::KyProto::quinn_connect(
+                    addr,
+                    &server_name,
+                    roots.into(),
+                    &kyproto::quinn::QuinnClientOptions::default(),
+                )
+                .await?
             }
-        }
+            #[cfg(feature = "backend-webtransport-js")]
+            ClientConfig::WebTransport {
+                url,
+                certificate_hash_algorithm,
+                certificate_hash,
+            } => {
+                use kyproto::webtransport_js::{
+                    WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
+                };
 
-        debug!("Local endpoint 0x{id:X} registered");
+                let options = WebTransportJSOptions {
+                    congestion_control: WebTransportJSCongestionControl::LowLatency,
+                    require_unreliable: true,
+                    server_certificate_hashes: vec![WebTransportJSHash::new_from_hex(
+                        certificate_hash_algorithm,
+                        &certificate_hash,
+                    )?],
+                };
 
-        Ok(id)
+                kyproto::KyProto::webtransport_js_connect(&url, &options).await?
+            }
+        };
+
+        Self::new(
+            connection,
+            ConnectionParam {
+                #[cfg(feature = "ipc")]
+                local_clients_port: KYMUX_LOCAL_CLIENTS_PORT,
+            },
+        )
+        .await
     }
 
-    pub async fn wait_idle(&self) {
-        self.endpoint.wait_idle().await
+    pub async fn register_video_endpoint(
+        &self,
+        id: Option<u16>,
+        video_protocol: VideoProtocol,
+    ) -> Result<VideoServerEndpoint> {
+        let endpoint = self
+            .connection
+            .register_video_endpoint(id, video_protocol)
+            .await?;
+        Ok(endpoint)
     }
 
-    pub async fn endpoints(&self) -> Result<Vec<EndpointDesc>> {
-        let state = self.state.lock().await;
+    #[cfg(feature = "ipc")]
+    pub async fn register_video_endpoint_with_ipc_forward(
+        &self,
+        id: Option<u16>,
+        video_protocol: VideoProtocol,
+    ) -> Result<(u16, String)> {
+        let endpoint = self.register_video_endpoint(id, video_protocol).await?;
+        let id = endpoint.id();
 
-        Ok(state
-            .endpoints
-            .values()
-            .map(|endpoint| *endpoint.desc())
-            .collect())
+        let forwarder = self.ipc.kycom.register(endpoint)?;
+        let uri = forwarder.addr().url();
+
+        self.ipc.forward(forwarder)?;
+
+        Ok((id, uri))
     }
 
-    pub fn client_listening_addr(&self) -> SocketAddr {
-        self.client_listening_addr
+    pub fn connect_video_endpoint(
+        &self,
+        id: u16,
+        video_protocol: VideoProtocol,
+    ) -> Result<VideoClientEndpoint> {
+        let endpoint = self.connection.connect_video_endpoint(id, video_protocol)?;
+        Ok(endpoint)
     }
 
-    pub fn get_uri_for_endpoint(&self, id: u16) -> Result<String> {
-        let port = self.client_listening_addr.port();
+    #[cfg(feature = "ipc")]
+    pub fn connect_video_endpoint_with_ipc_forward(
+        &self,
+        id: u16,
+        video_protocol: VideoProtocol,
+    ) -> Result<String> {
+        let endpoint = self.connect_video_endpoint(id, video_protocol)?;
 
-        // Only TCP is supported for now
-        Ok(format!("kymux://127.0.0.1:{port}/{id:X}"))
+        let forwarder = self.ipc.kycom.register(endpoint)?;
+        let uri = forwarder.addr().url();
+
+        self.ipc.forward(forwarder)?;
+
+        Ok(uri)
+    }
+
+    pub async fn register_audio_endpoint(&self, id: Option<u16>) -> Result<AudioServerEndpoint> {
+        let endpoint = self.connection.register_audio_endpoint(id).await?;
+        Ok(endpoint)
+    }
+
+    #[cfg(feature = "ipc")]
+    pub async fn register_audio_endpoint_with_ipc_forward(
+        &self,
+        id: Option<u16>,
+    ) -> Result<(u16, String)> {
+        let endpoint = self.register_audio_endpoint(id).await?;
+        let id = endpoint.id();
+
+        let forwarder = self.ipc.kycom.register(endpoint)?;
+        let uri = forwarder.addr().url();
+
+        self.ipc.forward(forwarder)?;
+
+        Ok((id, uri))
+    }
+
+    pub fn connect_audio_endpoint(&self, id: u16) -> Result<AudioClientEndpoint> {
+        let endpoint = self.connection.connect_audio_endpoint(id)?;
+        Ok(endpoint)
+    }
+
+    #[cfg(feature = "ipc")]
+    pub fn connect_audio_endpoint_with_ipc_forward(&self, id: u16) -> Result<String> {
+        let endpoint = self.connect_audio_endpoint(id)?;
+
+        let forwarder = self.ipc.kycom.register(endpoint)?;
+        let uri = forwarder.addr().url();
+
+        self.ipc.forward(forwarder)?;
+
+        Ok(uri)
+    }
+
+    pub async fn register_input_endpoint(&self, id: Option<u16>) -> Result<InputEndpoint> {
+        let endpoint = self.connection.register_input_endpoint(id).await?;
+        Ok(endpoint)
+    }
+
+    #[cfg(feature = "ipc")]
+    pub async fn register_input_endpoint_with_ipc_forward(
+        &self,
+        id: Option<u16>,
+    ) -> Result<(u16, String)> {
+        let endpoint = self.register_input_endpoint(id).await?;
+        let id = endpoint.id();
+
+        let forwarder = self.ipc.kycom.register(endpoint)?;
+        let uri = forwarder.addr().url();
+
+        self.ipc.forward(forwarder)?;
+
+        Ok((id, uri))
+    }
+
+    pub fn connect_input_endpoint(&self, id: u16) -> Result<InputEndpoint> {
+        let endpoint = self.connection.connect_input_endpoint(id)?;
+        Ok(endpoint)
+    }
+
+    #[cfg(feature = "ipc")]
+    pub fn connect_input_endpoint_with_ipc_forward(&self, id: u16) -> Result<String> {
+        let endpoint = self.connect_input_endpoint(id)?;
+
+        let forwarder = self.ipc.kycom.register(endpoint)?;
+        let uri = forwarder.addr().url();
+
+        self.ipc.forward(forwarder)?;
+
+        Ok(uri)
     }
 }

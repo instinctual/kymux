@@ -2,6 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 const KYMUX_PORT: u16 = 9090;
 const SERVER_NAME: &str = "kymux_example";
@@ -39,6 +40,29 @@ fn gen_keys(server_name: &str) -> TlsKey {
     }
 }
 
+async fn send_playload(tx: &mut OwnedWriteHalf, payload: u64) {
+    let type_ = 0u8;
+    let size = 8u16;
+
+    tx.write_all(&type_.to_be_bytes()).await.unwrap();
+    tx.write_all(&size.to_be_bytes()).await.unwrap();
+    tx.write_all(&payload.to_be_bytes()).await.unwrap();
+}
+
+async fn recv_payload(rx: &mut OwnedReadHalf) -> u64 {
+    let mut type_ = [0u8; 1];
+    rx.read_exact(&mut type_).await.unwrap();
+
+    let mut buf = [0; 2];
+    rx.read_exact(&mut buf).await.unwrap();
+    let size = u16::from_be_bytes(buf);
+    assert_eq!(size, 8);
+
+    let mut buf = [0u8; 8];
+    rx.read_exact(&mut buf).await.unwrap();
+    u64::from_be_bytes(buf)
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::Builder::new()
@@ -51,12 +75,15 @@ async fn main() {
     // Server
     let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), KYMUX_PORT);
 
-    let server_config = kymux::ServerConfig::new(server_addr, keys.cert_chain, keys.private_key);
+    let server_config = kymux::ServerConfig::Quic {
+        addr: server_addr,
+        certificate: keys.cert_chain[0].clone(),
+        private_key: keys.private_key,
+    };
 
     let server_accept_task = async move {
         let listener = kymux::ConnectionListener::new(server_config).await.unwrap();
-        let connecting = listener.accept().await.unwrap();
-        connecting.complete_connection().await.unwrap()
+        listener.accept().await.unwrap()
     };
 
     // Client
@@ -64,43 +91,37 @@ async fn main() {
         .parse()
         .unwrap();
 
-    let client_config = kymux::ClientConfig::new(client_addr, keys.certs_store, SERVER_NAME.into());
+    let client_config = kymux::ClientConfig::Quic {
+        addr: client_addr,
+        roots: keys.certs_store,
+        server_name: SERVER_NAME.into(),
+    };
 
     let client = kymux::Connection::connect(client_config);
 
     // Connect
     let (server_ret, client_ret) = tokio::join!(server_accept_task, client);
-    let mut server = server_ret;
+    let server = server_ret;
     let client = client_ret.unwrap();
 
     println!("Connected");
 
-    let endpoint = server
-        .register_endpoint(None, kymux::StreamType::Input)
+    let (endpoint, server_addr_endpoint1) = server
+        .register_input_endpoint_with_ipc_forward(None)
         .await
+        .unwrap();
+    let client_addr_endpoint1 = client
+        .connect_input_endpoint_with_ipc_forward(endpoint)
         .unwrap();
     println!("Endpoint {endpoint:X} registered");
-    println!(
-        "Server({}): {:?}",
-        server.client_listening_addr(),
-        server.endpoints().await.unwrap()
-    );
-    println!(
-        "Client({}): {:?}",
-        client.client_listening_addr(),
-        client.endpoints().await.unwrap()
-    );
 
-    let client_addr_endpoint1 = client.get_uri_for_endpoint(endpoint).unwrap();
-    let server_addr_endpoint1 = server.get_uri_for_endpoint(endpoint).unwrap();
-
-    let endpoint2 = server
-        .register_endpoint(None, kymux::StreamType::Input)
+    let (endpoint2, server_addr_endpoint2) = server
+        .register_input_endpoint_with_ipc_forward(None)
         .await
         .unwrap();
-
-    let client_addr_endpoint2 = client.get_uri_for_endpoint(endpoint2).unwrap();
-    let server_addr_endpoint2 = server.get_uri_for_endpoint(endpoint2).unwrap();
+    let client_addr_endpoint2 = client
+        .connect_input_endpoint_with_ipc_forward(endpoint2)
+        .unwrap();
 
     // Create host client
     let a = tokio::task::spawn(async move {
@@ -119,12 +140,11 @@ async fn main() {
 
         for offset in 0..100 {
             let payload = 0x0123456789u64 + offset;
-            host_tx.write_all(&payload.to_ne_bytes()).await.unwrap();
 
-            let mut b = [0; 8];
-            client_rx.read_exact(&mut b).await.unwrap();
-            let rx_payload = u64::from_ne_bytes(b);
+            send_playload(&mut host_tx, payload).await;
+            let rx_payload = recv_payload(&mut client_rx).await;
             println!("Got payload 0x{rx_payload:X}");
+            assert_eq!(rx_payload, payload);
 
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
@@ -147,12 +167,11 @@ async fn main() {
 
         for offset in 0..100 {
             let payload = 0xABCDEF6789u64 + offset;
-            host2_tx.write_all(&payload.to_ne_bytes()).await.unwrap();
 
-            let mut b = [0; 8];
-            client2_rx.read_exact(&mut b).await.unwrap();
-            let rx_payload = u64::from_ne_bytes(b);
+            send_playload(&mut host2_tx, payload).await;
+            let rx_payload = recv_payload(&mut client2_rx).await;
             println!("Got payload 0x{rx_payload:X}");
+            assert_eq!(rx_payload, payload);
 
             tokio::time::sleep(Duration::from_millis(120)).await;
         }
@@ -161,13 +180,13 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // Endpoint 3
-    let endpoint3 = server
-        .register_endpoint(None, kymux::StreamType::Input)
+    let (endpoint3, server_addr_endpoint3) = server
+        .register_input_endpoint_with_ipc_forward(None)
         .await
         .unwrap();
-
-    let client_addr_endpoint3 = client.get_uri_for_endpoint(endpoint3).unwrap();
-    let server_addr_endpoint3 = server.get_uri_for_endpoint(endpoint3).unwrap();
+    let client_addr_endpoint3 = client
+        .connect_input_endpoint_with_ipc_forward(endpoint3)
+        .unwrap();
 
     // Create host client 3
     let c = tokio::task::spawn(async move {
@@ -186,12 +205,11 @@ async fn main() {
 
         for offset in 0..100 {
             let payload = 0xFFFF0000u64 + offset;
-            host_tx.write_all(&payload.to_ne_bytes()).await.unwrap();
 
-            let mut b = [0; 8];
-            client_rx.read_exact(&mut b).await.unwrap();
-            let rx_payload = u64::from_ne_bytes(b);
+            send_playload(&mut host_tx, payload).await;
+            let rx_payload = recv_payload(&mut client_rx).await;
             println!("Got payload 0x{rx_payload:X}");
+            assert_eq!(rx_payload, payload);
 
             tokio::time::sleep(Duration::from_millis(130)).await;
         }

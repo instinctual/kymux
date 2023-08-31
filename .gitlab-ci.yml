@@ -3,6 +3,7 @@ variables:
   DEBIAN_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-bookworm:20231027132733
   WIN64_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-win64:20231027133906
   MACOS_RUST_VERSION: 1.73.0
+  DESKTOP_FEATURES: backend-quinn,backend-wtransport,tokio-rt,ipc
 
 stages:
   - lint
@@ -43,7 +44,8 @@ build-debian-bookworm-x86_64:
     - tags
   script: |
     cargo build \
-      --examples
+      --examples \
+      --features $DESKTOP_FEATURES
 
 test-debian-bookworm-x86_64:
   stage: test
@@ -57,7 +59,9 @@ test-debian-bookworm-x86_64:
   needs:
     - build-debian-bookworm-x86_64
   script: |
-    cargo test
+    cargo test \
+      --release \
+      --features $DESKTOP_FEATURES
 
 clippy-debian-bookworm-x86_64:
   stage: misc
@@ -71,7 +75,9 @@ clippy-debian-bookworm-x86_64:
   needs:
     - build-debian-bookworm-x86_64
   script: |
-    cargo clippy -- -D warnings
+    cargo clippy \
+      --features $DESKTOP_FEATURES \
+      -- -D warnings
 
 build-windows-x86_64:
   stage: build
@@ -85,7 +91,8 @@ build-windows-x86_64:
   script: |
     cargo build \
       --target x86_64-pc-windows-gnu \
-      --examples
+      --examples \
+      --features $DESKTOP_FEATURES
 
 test-windows-x86_64:
   stage: test
@@ -99,7 +106,11 @@ test-windows-x86_64:
   needs:
     - build-windows-x86_64
   script: |
-    cargo test --target x86_64-pc-windows-gnu --no-run
+    cargo test \
+      --target x86_64-pc-windows-gnu \
+      --release \
+      --features $DESKTOP_FEATURES \
+      --no-run
 
 clippy-windows-x86_64:
   stage: misc
@@ -113,7 +124,10 @@ clippy-windows-x86_64:
   needs:
     - build-windows-x86_64
   script: |
-    cargo clippy --target x86_64-pc-windows-gnu -- -D warnings
+    cargo clippy \
+      --target x86_64-pc-windows-gnu \
+      --features $DESKTOP_FEATURES \
+      -- -D warnings
 
 .macos-common:
   before_script: |
@@ -130,7 +144,8 @@ clippy-windows-x86_64:
     - tags
   script: |
     cargo build \
-      --examples
+      --examples \
+      --features $DESKTOP_FEATURES
 
 .clippy-macos-common:
   extends: .macos-common
@@ -142,7 +157,9 @@ clippy-windows-x86_64:
     - merge_requests
     - tags
   script: |
-    cargo clippy -- -D warnings
+    cargo clippy \
+      --features $DESKTOP_FEATURES \
+      -- -D warnings
 
 build-macos-x86_64:
   extends: .build-macos-common
@@ -171,7 +188,9 @@ test-macos-arm64:
   needs:
     - build-macos-arm64
   script: |
-    cargo test
+    cargo test \
+      --release \
+      --features $DESKTOP_FEATURES
 
 clippy-macos-arm64:
   extends: .clippy-macos-common

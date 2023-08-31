@@ -4,26 +4,49 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-trait = "0.1.68"
-bytes = "1.4.0"
-env_logger = "0.10.0"
-futures = "0.3.28"
-futures-util = "0.3.24"
-log = "0.4.17"
-quinn = "0.10.2"
-quinn-proto = "0.10.4"
-rand = "0.8.5"
-raptorq = "1.7.0"
-rcgen = "0.9.3"
-rmp-serde = "1.1.1"
-rustls = { version = "0.21.7", features = ["quic"] }
-rustls-pemfile = "1.0.2"
-serde = {version = "1.0.148", features = ["derive"] }
-thiserror = "1.0.37"
-tokio = { version = "1.33.0", features = ["sync", "macros", "rt", "rt-multi-thread", "fs", "io-util"] }
-webpki = "0.22.0"
+log = "0.4.14"
+rustls = { version = "0.21.7", features = ["quic"], optional = true }
+thiserror = "1.0.24"
+tokio = { version = "1.33.0", optional = true }
+
+kycom = { path = "../kyproto/kycom", optional = true }
+kyproto = { path = "../kyproto/kyproto", optional = true }
 
 [dev-dependencies]
+async-trait = "0.1.74"
+byteorder = "1.5.0"
+bytes = "1.5.0"
+env_logger = "0.10.1"
+rand = "0.8.5"
+rcgen = "0.11.3"
 sha1 = "0.10.5"
 
 kymux_client = { path = "../kymux_client" }
+
+[features]
+default = []
+ipc = [
+    "dep:kycom",
+    "tokio/macros",
+    "tokio/rt",
+    "tokio/sync",
+]
+backend-quinn = [
+    "dep:rustls",
+    "kyproto/kynet-quinn",
+    "server",
+]
+backend-wtransport = [
+    "kyproto/kynet-wtransport",
+    "server",
+]
+backend-webtransport-js = [
+    "kyproto/kynet-webtransport-js",
+]
+js = [
+    "kyproto/js",
+]
+server = []
+tokio-rt = [
+    "kyproto?/tokio-rt",
+]

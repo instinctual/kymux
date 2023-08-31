@@ -6,3 +6,6 @@ members = [
     "kymux",
     "kymux_client",
 ]
+
+[patch.crates-io]
+ls-qpack-sys = { path = "kyproto/external/ls-qpack-rs/ls-qpack-sys" }
