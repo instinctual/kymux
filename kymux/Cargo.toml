@@ -20,7 +20,7 @@ rustls = { version = "0.20.6", features = ["quic"] }
 rustls-pemfile = "1.0.2"
 serde = {version = "1.0.148", features = ["derive"] }
 thiserror = "1.0.37"
-tokio = { version = "1.20.1", features = ["sync", "macros", "rt", "rt-multi-thread", "fs", "io-util"] }
+tokio = { version = "1.33.0", features = ["sync", "macros", "rt", "rt-multi-thread", "fs", "io-util"] }
 webpki = "0.22.0"
 
 [dev-dependencies]
