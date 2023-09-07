@@ -9,6 +9,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+async-trait = "0.1.73"
 bytes = "1.4.0"
 kynet = { version = "0.1", path = "../kynet", optional = true }
 log = "0.4.20"

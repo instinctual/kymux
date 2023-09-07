@@ -2,6 +2,7 @@
 compile_error!("No feature selected, pass either --features=js or --features=tokio-rt");
 
 mod error;
+mod protocol;
 mod router;
 mod runtime;
 mod util;
