@@ -17,7 +17,7 @@ wasm-bindgen-futures = { version = "0.4.37", optional = true }
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]
 default = []
-tokio = [
+tokio-rt = [
     "kynet/quinn",
     "dep:tokio",
 ]
