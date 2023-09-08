@@ -1,6 +1,8 @@
 use crate::protocol::ProtocolError;
+use crate::router;
 
 use async_trait::async_trait;
+use kynet::error::*;
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -17,3 +19,21 @@ pub(crate) trait ProtocolRecvDriver {
 
     async fn recv(&mut self) -> Result<Option<Self::Packet>, ProtocolError>;
 }
+
+macro_rules! impl_protocol_error_from {
+    ($t:ty) => {
+        impl From<$t> for ProtocolError {
+            fn from(value: $t) -> Self {
+                Self(format!("{value:?}"))
+            }
+        }
+    };
+}
+
+impl_protocol_error_from!(ConnectionError);
+impl_protocol_error_from!(SendDatagramError);
+impl_protocol_error_from!(ReadError);
+impl_protocol_error_from!(ReadExactError);
+impl_protocol_error_from!(WriteError);
+impl_protocol_error_from!(UnknownStreamError);
+impl_protocol_error_from!(router::RouterError);
