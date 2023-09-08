@@ -4,7 +4,7 @@ use crate::router;
 use async_trait::async_trait;
 use kynet::error::*;
 
-mod reliable;
+pub(crate) mod reliable;
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]

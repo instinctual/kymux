@@ -5,3 +5,7 @@ use thiserror::Error;
 pub struct EndpointAlreadyRegistered {
     pub endpoint_id: u16,
 }
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("protocol start error")]
+pub struct ProtocolStartError;
