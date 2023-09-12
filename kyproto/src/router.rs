@@ -2,6 +2,7 @@
 
 use crate::error::EndpointAlreadyRegistered;
 use crate::runtime;
+use crate::task::Task;
 use crate::util::{KyArc, KyMutex};
 
 use std::collections::hash_map::Entry;
@@ -32,11 +33,6 @@ pub(crate) struct RouterClient {
     tx: mpsc::Sender<KyRecvMsg>,
 }
 
-pub(crate) struct Task {
-    name: String,
-    tx: oneshot::Sender<()>,
-}
-
 pub(crate) struct Router {
     conn: Connection,
     clients: KyArc<KyMutex<ClientMap>>,
@@ -52,31 +48,10 @@ impl Router {
         }
     }
 
-    fn spawn_task<F>(task: F, name: String) -> Task
-    where
-        F: Future<Output = ()> + runtime::NonWasmSend + 'static,
-    {
-        let (tx, rx) = oneshot::channel();
-        let task_name = name.clone();
-
-        runtime::spawn(async move {
-            tokio::select! {
-                _ = rx => {
-                    debug!("Task {task_name} interrupted");
-                }
-                _ = task => {
-                    debug!("Task {task_name} terminated");
-                }
-            }
-        });
-
-        Task { name, tx }
-    }
-
     pub fn start(&self) {
         let conn = self.conn.clone();
         let clients = self.clients.clone();
-        let accept_uni_task = Self::spawn_task(
+        let accept_uni_task = Task::spawn_task(
             async move {
                 if let Err(err) = Self::accept_channels_uni(conn, clients).await {
                     error!("{err:?}");
@@ -87,7 +62,7 @@ impl Router {
 
         let conn = self.conn.clone();
         let clients = self.clients.clone();
-        let accept_bi_task = Self::spawn_task(
+        let accept_bi_task = Task::spawn_task(
             async move {
                 if let Err(err) = Self::accept_channels_bi(conn, clients).await {
                     error!("{err:?}");
@@ -98,7 +73,7 @@ impl Router {
 
         let conn = self.conn.clone();
         let clients = self.clients.clone();
-        let recv_datagrams_task = Self::spawn_task(
+        let recv_datagrams_task = Task::spawn_task(
             async move {
                 if let Err(err) = Self::recv_channels_datagrams(conn, clients).await {
                     error!("{err:?}");
@@ -117,9 +92,10 @@ impl Router {
         };
 
         for task in tasks {
-            let ret = task.tx.send(());
+            let name = task.name.clone();
+            let ret = task.cancel();
             if ret.is_err() {
-                warn!("Task {} seems to be already stopped", task.name);
+                warn!("Task {name} seems to be already stopped");
             }
         }
     }
