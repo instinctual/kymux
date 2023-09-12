@@ -40,49 +40,48 @@ pub(crate) struct Router {
 }
 
 impl Router {
-    pub fn new(conn: Connection) -> Self {
-        Self {
-            conn,
-            clients: KyArc::new(KyMutex::new(HashMap::new())),
-            tasks: KyMutex::new(Vec::new()),
-        }
-    }
+    pub fn start(conn: Connection) -> Self {
+        let clients = KyArc::new(KyMutex::new(HashMap::new()));
 
-    pub fn start(&self) {
-        let conn = self.conn.clone();
-        let clients = self.clients.clone();
+        let conn2 = conn.clone();
+        let clients2 = clients.clone();
         let accept_uni_task = Task::spawn_task(
             async move {
-                if let Err(err) = Self::accept_channels_uni(conn, clients).await {
+                if let Err(err) = Self::accept_channels_uni(conn2, clients2).await {
                     error!("{err:?}");
                 }
             },
             "accept_uni".to_string(),
         );
 
-        let conn = self.conn.clone();
-        let clients = self.clients.clone();
+        let conn2 = conn.clone();
+        let clients2 = clients.clone();
         let accept_bi_task = Task::spawn_task(
             async move {
-                if let Err(err) = Self::accept_channels_bi(conn, clients).await {
+                if let Err(err) = Self::accept_channels_bi(conn2, clients2).await {
                     error!("{err:?}");
                 }
             },
             "accept_bi".to_string(),
         );
 
-        let conn = self.conn.clone();
-        let clients = self.clients.clone();
+        let conn2 = conn.clone();
+        let clients2 = clients.clone();
         let recv_datagrams_task = Task::spawn_task(
             async move {
-                if let Err(err) = Self::recv_channels_datagrams(conn, clients).await {
+                if let Err(err) = Self::recv_channels_datagrams(conn2, clients2).await {
                     error!("{err:?}");
                 }
             },
             "recv_datagrams".to_string(),
         );
 
-        *self.tasks.lock() = vec![accept_uni_task, accept_bi_task, recv_datagrams_task];
+        let tasks = KyMutex::new(vec![accept_uni_task, accept_bi_task, recv_datagrams_task]);
+        Self {
+            conn,
+            clients,
+            tasks,
+        }
     }
 
     pub fn stop(&self) {
