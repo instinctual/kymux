@@ -5,3 +5,6 @@ build-quinn:
 
 build-webtransport-js:
 	cargo build --features=webtransport-js --target=wasm32-unknown-unknown
+
+build-wtransport:
+	cargo build --features=wtransport

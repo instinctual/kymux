@@ -14,6 +14,11 @@ mod webtransport_js;
 #[cfg(all(feature = "webtransport-js", not(target_family = "wasm")))]
 compile_error!("WebTransportJS is only available for wasm");
 
+#[cfg(all(feature = "wtransport", not(target_family = "wasm")))]
+mod wtransport;
+#[cfg(all(feature = "wtransport", target_family = "wasm"))]
+compile_error!("WTransport is not available for wasm");
+
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 pub trait ConnectionDriver {
