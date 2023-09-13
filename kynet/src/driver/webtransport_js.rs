@@ -232,7 +232,7 @@ impl SendStreamDriver for WebTransportJSSendStreamDriver {
         Ok(())
     }
 
-    async fn abort(&mut self) -> Result<(), UnknownStreamError> {
+    async fn abort(self: Box<Self>) -> Result<(), UnknownStreamError> {
         let promise = self.writer.abort();
         JsFuture::from(promise).await?;
         Ok(())

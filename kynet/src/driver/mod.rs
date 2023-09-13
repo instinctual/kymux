@@ -56,7 +56,7 @@ pub trait SendStreamDriver {
 
     async fn close(&mut self) -> Result<(), WriteError>;
 
-    async fn abort(&mut self) -> Result<(), UnknownStreamError>;
+    async fn abort(self: Box<Self>) -> Result<(), UnknownStreamError>;
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
