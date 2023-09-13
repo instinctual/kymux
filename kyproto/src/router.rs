@@ -234,6 +234,12 @@ impl Router {
     }
 }
 
+impl Drop for Router {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 pub(crate) struct KyChannel {
     endpoint_id: u16,
     conn: Connection,
