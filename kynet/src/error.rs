@@ -11,7 +11,7 @@ pub enum SendDatagramError {
     #[error("generic send datagram error: {msg}")]
     Generic { msg: String },
     #[error("datagram unsupported by peer")]
-    Unsupported,
+    UnsupportedByPeer,
     #[error("datagram too large")]
     TooLarge,
     #[error("connection error")]

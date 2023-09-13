@@ -179,7 +179,7 @@ impl From<quinn::SendDatagramError> for SendDatagramError {
     fn from(value: quinn::SendDatagramError) -> Self {
         match value {
             quinn::SendDatagramError::UnsupportedByPeer | quinn::SendDatagramError::Disabled => {
-                Self::Unsupported
+                Self::UnsupportedByPeer
             }
             quinn::SendDatagramError::TooLarge => Self::TooLarge,
             quinn::SendDatagramError::ConnectionLost(error) => Self::ConnectionError(error.into()),
