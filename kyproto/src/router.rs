@@ -36,7 +36,7 @@ pub(crate) struct RouterClient {
 pub(crate) struct Router {
     conn: Connection,
     clients: KyArc<KyMutex<ClientMap>>,
-    tasks: KyMutex<Vec<Task>>,
+    tasks: Vec<Task>,
 }
 
 impl Router {
@@ -76,7 +76,7 @@ impl Router {
             "recv_datagrams".to_string(),
         );
 
-        let tasks = KyMutex::new(vec![accept_uni_task, accept_bi_task, recv_datagrams_task]);
+        let tasks = vec![accept_uni_task, accept_bi_task, recv_datagrams_task];
         Self {
             conn,
             clients,
@@ -84,12 +84,8 @@ impl Router {
         }
     }
 
-    pub fn stop(&self) {
-        let tasks = {
-            let mut tasks = self.tasks.lock();
-            std::mem::take(&mut *tasks)
-        };
-
+    pub fn stop(&mut self) {
+        let tasks = std::mem::take(&mut self.tasks);
         for task in tasks {
             let name = task.name.clone();
             let ret = task.cancel();
