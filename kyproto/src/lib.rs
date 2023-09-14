@@ -15,7 +15,7 @@ pub use protocol::{
 };
 
 mod control;
-mod error;
+pub mod error;
 mod protocol;
 mod router;
 mod runtime;

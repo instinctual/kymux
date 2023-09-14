@@ -1,5 +1,6 @@
 #![allow(unused)] // TODO remove
 
+use crate::error::ProtocolError;
 pub use crate::protocol::av::{
     AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
 };
@@ -12,10 +13,6 @@ use thiserror::Error;
 
 mod av;
 pub(crate) mod driver;
-
-#[derive(Debug, Error)]
-#[error("Protoocol error: {0}")]
-pub struct ProtocolError(String);
 
 pub struct ProtocolSend<T> {
     driver: Box<dyn ProtocolSendDriver<Packet = T>>,

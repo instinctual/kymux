@@ -1,4 +1,4 @@
-use crate::protocol::ProtocolError;
+use crate::error::ProtocolError;
 use crate::router;
 
 use async_trait::async_trait;
