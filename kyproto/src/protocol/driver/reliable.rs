@@ -97,8 +97,7 @@ impl ProtocolRecvDriver for ReliableProtocolRecvDriver {
         let header = AVPacketHeader::deserialize(&header);
         let packet = match header {
             AVPacketHeader::Media(header) => {
-                let mut buf = BytesMut::new();
-                buf.resize(header.size as usize, 0);
+                let mut buf = BytesMut::zeroed(header.size as usize);
 
                 let res = recv.read_exact(&mut buf).await;
                 if let Err(ReadExactError::FinishedEarly) = res {
