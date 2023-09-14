@@ -9,7 +9,10 @@ use kynet::error::ConnectionError;
 use kynet::Connection;
 use tokio::sync::{mpsc, oneshot};
 
-pub use protocol::{AVPacket, ProtocolRecv, ProtocolSend, VideoProtocol};
+pub use protocol::{
+    AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
+    ProtocolRecv, ProtocolSend, VideoProtocol,
+};
 
 mod control;
 mod error;

@@ -1,6 +1,8 @@
 #![allow(unused)] // TODO remove
 
-pub use crate::protocol::av::AVPacket;
+pub use crate::protocol::av::{
+    AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
+};
 use crate::protocol::driver::reliable::{ReliableProtocolRecvDriver, ReliableProtocolSendDriver};
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
