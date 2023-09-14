@@ -28,7 +28,7 @@ pub struct MediaPacketHeader {
 }
 
 impl CodecPacket {
-    pub(crate) fn serialize(&self, buf: &mut [u8]) {
+    pub fn serialize_to(&self, buf: &mut [u8]) {
         assert!(buf.len() == 12);
 
         BigEndian::write_u32(&mut buf[..4], self.codec);
@@ -36,7 +36,13 @@ impl CodecPacket {
         buf[5..].fill(0);
     }
 
-    pub(crate) fn deserialize(buf: &[u8]) -> Self {
+    pub fn serialize(&self) -> [u8; 12] {
+        let mut buf = [0; 12];
+        self.serialize_to(&mut buf);
+        buf
+    }
+
+    pub fn deserialize(buf: &[u8]) -> Self {
         assert!(buf.len() == 12);
 
         let codec = BigEndian::read_u32(&buf[..4]);
@@ -46,7 +52,7 @@ impl CodecPacket {
 }
 
 impl MediaPacketHeader {
-    pub(crate) fn serialize(&self, buf: &mut [u8]) {
+    pub fn serialize_to(&self, buf: &mut [u8]) {
         assert!(buf.len() == 12);
 
         assert!(self.pts & !0x1F_FF_FF_FF_FF_FF_FF_FF == 0);
@@ -63,7 +69,13 @@ impl MediaPacketHeader {
         BigEndian::write_u32(&mut buf[8..], self.size);
     }
 
-    pub(crate) fn deserialize(buf: &[u8]) -> Self {
+    pub fn serialize(&self) -> [u8; 12] {
+        let mut buf = [0; 12];
+        self.serialize_to(&mut buf);
+        buf
+    }
+
+    pub fn deserialize(buf: &[u8]) -> Self {
         assert!(buf.len() == 12);
 
         assert!(buf[0] & 0x80 != 0); // media packet

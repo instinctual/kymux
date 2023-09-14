@@ -50,13 +50,11 @@ impl ProtocolSendDriver for ReliableProtocolSendDriver {
 
         match packet {
             AVPacket::Codec(packet) => {
-                let mut header = [0; 12];
-                packet.serialize(&mut header);
+                let header = packet.serialize();
                 send.write_all(&header).await?;
             }
             AVPacket::Media(packet) => {
-                let mut header = [0; 12];
-                packet.header.serialize(&mut header);
+                let header = packet.header.serialize();
                 send.write_all(&header).await?;
                 send.write_all(&packet.payload).await?;
             }
