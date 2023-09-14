@@ -1,4 +1,4 @@
-use crate::protocol::av::{AVPacket, CodecPacket, MediaPacket, MediaPacketHeader};
+use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::{KyChannel, KyRecvMsg};
 
@@ -50,7 +50,7 @@ impl ProtocolSendDriver for ReliableProtocolSendDriver {
 
         match packet {
             AVPacket::Codec(packet) => {
-                let header = packet.serialize();
+                let header = packet.header.serialize();
                 send.write_all(&header).await?;
             }
             AVPacket::Media(packet) => {
@@ -87,33 +87,31 @@ impl ProtocolRecvDriver for ReliableProtocolRecvDriver {
 
         let recv = self.recv.as_mut().unwrap();
 
-        let mut buf = BytesMut::new();
-        buf.resize(12, 0);
-
-        let res = recv.read_exact(&mut buf).await;
+        let mut header = [0; 12];
+        let res = recv.read_exact(&mut header).await;
         if let Err(ReadExactError::FinishedEarly) = res {
             return Ok(None); // EOS
         }
         res?;
 
-        let is_media_packet = buf[0] & 0x80 != 0;
-        let packet = if is_media_packet {
-            let header = MediaPacketHeader::deserialize(&buf);
-            buf.resize(12 + header.size as usize, 0);
+        let header = AVPacketHeader::deserialize(&header);
+        let packet = match header {
+            AVPacketHeader::Media(header) => {
+                let mut buf = BytesMut::new();
+                buf.resize(header.size as usize, 0);
 
-            let res = recv.read_exact(&mut buf[12..]).await;
-            if let Err(ReadExactError::FinishedEarly) = res {
-                return Ok(None); // EOS
+                let res = recv.read_exact(&mut buf).await;
+                if let Err(ReadExactError::FinishedEarly) = res {
+                    return Ok(None); // EOS
+                }
+                res?;
+
+                AVPacket::Media(MediaPacket {
+                    header,
+                    payload: buf.freeze(),
+                })
             }
-            res?;
-
-            AVPacket::Media(MediaPacket {
-                header,
-                payload: buf.freeze().slice(12..),
-            })
-        } else {
-            let packet = CodecPacket::deserialize(&buf);
-            AVPacket::Codec(packet)
+            AVPacketHeader::Codec(header) => AVPacket::Codec(CodecPacket { header }),
         };
 
         Ok(Some(packet))

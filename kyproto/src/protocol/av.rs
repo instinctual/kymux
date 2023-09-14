@@ -8,7 +8,18 @@ pub enum AVPacket {
 }
 
 #[derive(Debug)]
+pub enum AVPacketHeader {
+    Codec(CodecPacketHeader),
+    Media(MediaPacketHeader),
+}
+
+#[derive(Debug)]
 pub struct CodecPacket {
+    pub header: CodecPacketHeader,
+}
+
+#[derive(Debug)]
+pub struct CodecPacketHeader {
     pub codec: u32,
     pub rotation: u8,
 }
@@ -27,7 +38,7 @@ pub struct MediaPacketHeader {
     pub size: u32,
 }
 
-impl CodecPacket {
+impl CodecPacketHeader {
     pub fn serialize_to(&self, buf: &mut [u8]) {
         assert!(buf.len() == 12);
 
@@ -44,6 +55,7 @@ impl CodecPacket {
 
     pub fn deserialize(buf: &[u8]) -> Self {
         assert!(buf.len() == 12);
+        assert!(buf[0] & 0x80 == 0); // codec packet
 
         let codec = BigEndian::read_u32(&buf[..4]);
         let rotation = buf[4];
@@ -77,8 +89,8 @@ impl MediaPacketHeader {
 
     pub fn deserialize(buf: &[u8]) -> Self {
         assert!(buf.len() == 12);
-
         assert!(buf[0] & 0x80 != 0); // media packet
+
         let pts_and_flags = BigEndian::read_u64(&buf[..8]);
         let is_config = (pts_and_flags & (1 << 62)) != 0;
         let is_key = (pts_and_flags & (1 << 61)) != 0;
@@ -90,6 +102,19 @@ impl MediaPacketHeader {
             is_key,
             pts,
             size,
+        }
+    }
+}
+
+impl AVPacketHeader {
+    pub fn deserialize(buf: &[u8]) -> Self {
+        assert!(buf.len() == 12);
+
+        let is_codec = buf[0] & 0x80 == 0;
+        if is_codec {
+            Self::Codec(CodecPacketHeader::deserialize(buf))
+        } else {
+            Self::Media(MediaPacketHeader::deserialize(buf))
         }
     }
 }
