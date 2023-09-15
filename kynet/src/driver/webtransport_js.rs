@@ -16,6 +16,7 @@ impl From<web_sys::WebTransport> for Connection {
     }
 }
 
+#[derive(Debug)]
 struct WebTransportJSConnectionDriver {
     web_transport: web_sys::WebTransport,
     uni_streams_reader: RefCell<Option<web_sys::ReadableStreamDefaultReader>>,
@@ -199,6 +200,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
     }
 }
 
+#[derive(Debug)]
 struct WebTransportJSSendStreamDriver {
     writer: web_sys::WritableStreamDefaultWriter,
 }
@@ -239,6 +241,7 @@ impl SendStreamDriver for WebTransportJSSendStreamDriver {
     }
 }
 
+#[derive(Debug)]
 struct WebTransportJSRecvStreamDriver {
     reader: web_sys::ReadableStreamByobReader,
 }

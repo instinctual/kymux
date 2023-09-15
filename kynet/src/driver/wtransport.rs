@@ -14,6 +14,7 @@ impl From<wtransport::Connection> for Connection {
     }
 }
 
+#[derive(Debug)]
 struct WTransportConnectionDriver {
     conn: wtransport::Connection,
 }
@@ -83,6 +84,7 @@ impl ConnectionDriver for WTransportConnectionDriver {
     }
 }
 
+#[derive(Debug)]
 struct WTransportSendStreamDriver {
     send: wtransport::SendStream,
 }
@@ -119,6 +121,7 @@ impl SendStreamDriver for WTransportSendStreamDriver {
     }
 }
 
+#[derive(Debug)]
 struct WTransportRecvStreamDriver {
     recv: wtransport::RecvStream,
 }

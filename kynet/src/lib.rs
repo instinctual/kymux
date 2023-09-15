@@ -1,6 +1,8 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
 
+use std::fmt::Debug;
+
 #[cfg(target_family = "wasm")]
 use std::rc::Rc;
 #[cfg(not(target_family = "wasm"))]
@@ -14,7 +16,7 @@ pub mod error;
 // This abtraction does not handle the QUIC or WebTransport connection
 // creation, but only streams and datagram once the connection is created
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Connection {
     #[cfg(not(target_family = "wasm"))]
     driver: Arc<dyn ConnectionDriver + Sync + Send>,
@@ -74,6 +76,7 @@ impl Connection {
     }
 }
 
+#[derive(Debug)]
 pub struct SendStream {
     #[cfg(not(target_family = "wasm"))]
     driver: Box<dyn SendStreamDriver + Sync + Send>,
@@ -113,6 +116,7 @@ impl SendStream {
     }
 }
 
+#[derive(Debug)]
 pub struct RecvStream {
     #[cfg(not(target_family = "wasm"))]
     driver: Box<dyn RecvStreamDriver + Sync + Send>,

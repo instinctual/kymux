@@ -12,6 +12,7 @@ impl From<quinn::Connection> for Connection {
     }
 }
 
+#[derive(Debug)]
 struct QuinnConnectionDriver {
     conn: quinn::Connection,
 }
@@ -84,6 +85,7 @@ impl ConnectionDriver for QuinnConnectionDriver {
     }
 }
 
+#[derive(Debug)]
 struct QuinnSendStreamDriver {
     send: quinn::SendStream,
 }
@@ -119,6 +121,7 @@ impl SendStreamDriver for QuinnSendStreamDriver {
     }
 }
 
+#[derive(Debug)]
 struct QuinnRecvStreamDriver {
     recv: quinn::RecvStream,
 }

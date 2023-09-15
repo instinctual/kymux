@@ -1,6 +1,8 @@
 use crate::error::*;
 use crate::{RecvStream, SendStream};
 
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 
@@ -21,7 +23,7 @@ compile_error!("WTransport is not available for wasm");
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub trait ConnectionDriver {
+pub trait ConnectionDriver: Debug {
     async fn open_uni(&self) -> Result<SendStream, ConnectionError>;
 
     async fn open_bi(&self) -> Result<(SendStream, RecvStream), ConnectionError>;
@@ -43,7 +45,7 @@ pub trait ConnectionDriver {
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub trait SendStreamDriver {
+pub trait SendStreamDriver: Debug {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError>;
 
     async fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError> {
@@ -66,7 +68,7 @@ pub trait SendStreamDriver {
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub trait RecvStreamDriver {
+pub trait RecvStreamDriver: Debug {
     async fn read(&mut self, buf: &mut [u8]) -> Result<Option<usize>, ReadError>;
 
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ReadExactError> {
