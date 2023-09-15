@@ -4,6 +4,7 @@ use crate::router;
 use async_trait::async_trait;
 use kynet::error::*;
 
+pub(crate) mod gopstream;
 pub(crate) mod reliable;
 pub(crate) mod util;
 

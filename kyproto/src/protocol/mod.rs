@@ -4,6 +4,9 @@ use crate::error::ProtocolError;
 pub use crate::protocol::av::{
     AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
 };
+use crate::protocol::driver::gopstream::{
+    GopStreamProtocolRecvDriver, GopStreamProtocolSendDriver,
+};
 use crate::protocol::driver::reliable::{ReliableProtocolRecvDriver, ReliableProtocolSendDriver};
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
@@ -52,22 +55,32 @@ pub(crate) async fn start_video_protocol_send(
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 ) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
-    let driver = match video_protocol {
-        VideoProtocol::Reliable => Box::new(ReliableProtocolSendDriver::start(ky_channel).await?),
+    let protocol = match video_protocol {
+        VideoProtocol::Reliable => ProtocolSend {
+            driver: Box::new(ReliableProtocolSendDriver::start(ky_channel).await?),
+        },
+        VideoProtocol::GopStream => ProtocolSend {
+            driver: Box::new(GopStreamProtocolSendDriver::start(ky_channel).await?),
+        },
         _ => unimplemented!(),
     };
 
-    Ok(ProtocolSend { driver })
+    Ok(protocol)
 }
 
 pub(crate) async fn start_video_protocol_recv(
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 ) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
-    let driver = match video_protocol {
-        VideoProtocol::Reliable => Box::new(ReliableProtocolRecvDriver::start(ky_channel).await?),
+    let protocol = match video_protocol {
+        VideoProtocol::Reliable => ProtocolRecv {
+            driver: Box::new(ReliableProtocolRecvDriver::start(ky_channel).await?),
+        },
+        VideoProtocol::GopStream => ProtocolRecv {
+            driver: Box::new(GopStreamProtocolRecvDriver::start(ky_channel).await?),
+        },
         _ => unimplemented!(),
     };
 
-    Ok(ProtocolRecv { driver })
+    Ok(protocol)
 }
