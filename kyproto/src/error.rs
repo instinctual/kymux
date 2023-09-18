@@ -10,10 +10,6 @@ pub struct EndpointAlreadyRegistered {
 #[error("Protoocol error: {0}")]
 pub struct ProtocolError(pub String);
 
-#[derive(Debug, Error, Clone)]
-#[error("protocol start error")]
-pub struct ProtocolStartError;
-
 #[cfg(all(feature = "js", target_family = "wasm"))]
 mod js_error {
     // For convenience, also provide the conversion from these errors to
@@ -35,7 +31,6 @@ mod js_error {
 
     impl_from_jsvalue!(crate::error::EndpointAlreadyRegistered);
     impl_from_jsvalue!(crate::error::ProtocolError);
-    impl_from_jsvalue!(crate::error::ProtocolStartError);
 }
 
 #[cfg(all(feature = "js", target_family = "wasm"))]

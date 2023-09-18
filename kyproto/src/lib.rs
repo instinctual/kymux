@@ -28,7 +28,7 @@ pub struct VideoSendEndpoint {
 }
 
 impl VideoSendEndpoint {
-    pub async fn started(self) -> Result<ProtocolSend<AVPacket>, ProtocolStartError> {
+    pub async fn started(self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
         self.start_request_receiver.await?;
         Ok(self.protocol_send)
     }
@@ -41,7 +41,7 @@ pub struct VideoRecvEndpoint {
 }
 
 impl VideoRecvEndpoint {
-    pub async fn start(self) -> Result<ProtocolRecv<AVPacket>, ProtocolStartError> {
+    pub async fn start(self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
         let msg = ControlMsg::RequestStart {
             endpoint_id: self.endpoint_id,
         };
@@ -102,14 +102,14 @@ impl KyProto {
     }
 }
 
-impl From<oneshot::error::RecvError> for ProtocolStartError {
-    fn from(_: oneshot::error::RecvError) -> Self {
-        Self
+impl From<oneshot::error::RecvError> for ProtocolError {
+    fn from(err: oneshot::error::RecvError) -> Self {
+        Self(format!("{err}"))
     }
 }
 
-impl<T> From<mpsc::error::SendError<T>> for ProtocolStartError {
-    fn from(_: mpsc::error::SendError<T>) -> Self {
-        Self
+impl<T> From<mpsc::error::SendError<T>> for ProtocolError {
+    fn from(err: mpsc::error::SendError<T>) -> Self {
+        Self(format!("{err}"))
     }
 }
