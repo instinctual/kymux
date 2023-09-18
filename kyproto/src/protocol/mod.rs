@@ -19,6 +19,10 @@ pub struct ProtocolSend<T> {
 }
 
 impl<T> ProtocolSend<T> {
+    pub(crate) async fn start(&mut self) -> Result<(), ProtocolError> {
+        self.driver.start().await
+    }
+
     pub async fn send(&mut self, packet: T) -> Result<(), ProtocolError> {
         self.driver.send(packet).await
     }
@@ -29,6 +33,10 @@ pub struct ProtocolRecv<T> {
 }
 
 impl<T> ProtocolRecv<T> {
+    pub(crate) async fn start(&mut self) -> Result<(), ProtocolError> {
+        self.driver.start().await
+    }
+
     pub async fn recv(&mut self) -> Result<Option<T>, ProtocolError> {
         self.driver.recv().await
     }

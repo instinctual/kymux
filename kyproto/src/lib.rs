@@ -28,8 +28,9 @@ pub struct VideoSendEndpoint {
 }
 
 impl VideoSendEndpoint {
-    pub async fn started(self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
+    pub async fn started(mut self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
         self.start_request_receiver.await?;
+        self.protocol_send.start().await?;
         Ok(self.protocol_send)
     }
 }
@@ -41,11 +42,12 @@ pub struct VideoRecvEndpoint {
 }
 
 impl VideoRecvEndpoint {
-    pub async fn start(self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
+    pub async fn start(mut self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
         let msg = ControlMsg::RequestStart {
             endpoint_id: self.endpoint_id,
         };
         self.control_msg_sender.send(msg).await?;
+        self.protocol_recv.start().await?;
         Ok(self.protocol_recv)
     }
 }

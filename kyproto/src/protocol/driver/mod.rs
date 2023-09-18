@@ -12,6 +12,8 @@ pub(crate) mod util;
 pub(crate) trait ProtocolSendDriver {
     type Packet;
 
+    async fn start(&mut self) -> Result<(), ProtocolError>;
+
     async fn send(&mut self, packet: Self::Packet) -> Result<(), ProtocolError>;
 }
 
@@ -19,6 +21,8 @@ pub(crate) trait ProtocolSendDriver {
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 pub(crate) trait ProtocolRecvDriver {
     type Packet;
+
+    async fn start(&mut self) -> Result<(), ProtocolError>;
 
     async fn recv(&mut self) -> Result<Option<Self::Packet>, ProtocolError>;
 }

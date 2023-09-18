@@ -27,13 +27,18 @@ impl ReliableProtocolSendDriver {
 impl ProtocolSendDriver for ReliableProtocolSendDriver {
     type Packet = AVPacket;
 
-    async fn send(&mut self, packet: AVPacket) -> Result<(), ProtocolError> {
-        if self.send.is_none() {
-            let send = self.ky_channel.open_uni().await?;
-            self.send = Some(send);
-        }
+    async fn start(&mut self) -> Result<(), ProtocolError> {
+        assert!(self.send.is_none());
 
-        let send = self.send.as_mut().unwrap();
+        let send = self.ky_channel.open_uni().await?;
+        self.send = Some(send);
+        Ok(())
+    }
+
+    async fn send(&mut self, packet: AVPacket) -> Result<(), ProtocolError> {
+        assert!(self.send.is_some());
+
+        let send = self.send.as_mut().expect("Protocol not started");
 
         match packet {
             AVPacket::Codec(packet) => {
@@ -70,23 +75,29 @@ impl ReliableProtocolRecvDriver {
 impl ProtocolRecvDriver for ReliableProtocolRecvDriver {
     type Packet = AVPacket;
 
-    async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {
-        if self.recv.is_none() {
-            loop {
-                match self.ky_channel.recv().await? {
-                    KyRecvMsg::AcceptUni(recv) => {
-                        self.recv = Some(recv);
-                        break;
-                    }
-                    KyRecvMsg::AcceptBi(..) => {
-                        Err(ProtocolError("Unexpected accept_bi()".to_string()))?
-                    }
-                    KyRecvMsg::Datagram(..) => { /* ignore */ }
+    async fn start(&mut self) -> Result<(), ProtocolError> {
+        assert!(self.recv.is_none());
+
+        loop {
+            match self.ky_channel.recv().await? {
+                KyRecvMsg::AcceptUni(recv) => {
+                    self.recv = Some(recv);
+                    break;
                 }
+                KyRecvMsg::AcceptBi(..) => {
+                    Err(ProtocolError("Unexpected accept_bi()".to_string()))?
+                }
+                KyRecvMsg::Datagram(..) => { /* ignore */ }
             }
         }
 
-        let recv = self.recv.as_mut().unwrap();
+        Ok(())
+    }
+
+    async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {
+        assert!(self.recv.is_some());
+
+        let recv = self.recv.as_mut().expect("Protocol not started");
 
         util::read_packet(recv).await
     }
