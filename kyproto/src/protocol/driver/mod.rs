@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use kynet::error::*;
 
 pub(crate) mod reliable;
+pub(crate) mod util;
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]

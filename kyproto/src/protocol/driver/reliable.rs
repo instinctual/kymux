@@ -1,4 +1,5 @@
 use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
+use crate::protocol::driver::util;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::{KyChannel, KyRecvMsg};
 
@@ -87,32 +88,6 @@ impl ProtocolRecvDriver for ReliableProtocolRecvDriver {
 
         let recv = self.recv.as_mut().unwrap();
 
-        let mut header = [0; 12];
-        let res = recv.read_exact(&mut header).await;
-        if let Err(ReadExactError::FinishedEarly) = res {
-            return Ok(None); // EOS
-        }
-        res?;
-
-        let header = AVPacketHeader::deserialize(&header);
-        let packet = match header {
-            AVPacketHeader::Media(header) => {
-                let mut buf = BytesMut::zeroed(header.size as usize);
-
-                let res = recv.read_exact(&mut buf).await;
-                if let Err(ReadExactError::FinishedEarly) = res {
-                    return Ok(None); // EOS
-                }
-                res?;
-
-                AVPacket::Media(MediaPacket {
-                    header,
-                    payload: buf.freeze(),
-                })
-            }
-            AVPacketHeader::Codec(header) => AVPacket::Codec(CodecPacket { header }),
-        };
-
-        Ok(Some(packet))
+        util::read_packet(recv).await
     }
 }
