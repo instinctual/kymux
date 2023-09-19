@@ -13,25 +13,11 @@ pub(crate) struct ReliableProtocolSendDriver {
     send: Option<SendStream>,
 }
 
-pub(crate) struct ReliableProtocolRecvDriver {
-    ky_channel: KyChannel,
-    recv: Option<RecvStream>,
-}
-
 impl ReliableProtocolSendDriver {
     pub(crate) fn new(ky_channel: KyChannel) -> Self {
         Self {
             ky_channel,
             send: None,
-        }
-    }
-}
-
-impl ReliableProtocolRecvDriver {
-    pub(crate) fn new(ky_channel: KyChannel) -> Self {
-        Self {
-            ky_channel,
-            recv: None,
         }
     }
 }
@@ -62,6 +48,20 @@ impl ProtocolSendDriver for ReliableProtocolSendDriver {
         }
 
         Ok(())
+    }
+}
+
+pub(crate) struct ReliableProtocolRecvDriver {
+    ky_channel: KyChannel,
+    recv: Option<RecvStream>,
+}
+
+impl ReliableProtocolRecvDriver {
+    pub(crate) fn new(ky_channel: KyChannel) -> Self {
+        Self {
+            ky_channel,
+            recv: None,
+        }
     }
 }
 
