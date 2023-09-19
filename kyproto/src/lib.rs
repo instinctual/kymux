@@ -3,7 +3,7 @@ compile_error!("No feature selected, pass either --features=js or --features=tok
 
 use control::{Control, ControlMsg};
 use error::*;
-use router::Router;
+use router::{KyChannel, Router};
 
 use kynet::error::ConnectionError;
 use kynet::Connection;
@@ -24,31 +24,31 @@ mod util;
 
 pub struct VideoSendEndpoint {
     start_request_receiver: oneshot::Receiver<()>,
-    protocol_send: ProtocolSend<AVPacket>,
+    ky_channel: KyChannel,
+    video_protocol: VideoProtocol,
 }
 
 impl VideoSendEndpoint {
-    pub async fn started(mut self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
+    pub async fn started(self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
         self.start_request_receiver.await?;
-        self.protocol_send.start().await?;
-        Ok(self.protocol_send)
+        protocol::start_video_protocol_send(self.ky_channel, self.video_protocol).await
     }
 }
 
 pub struct VideoRecvEndpoint {
     endpoint_id: u16,
     control_msg_sender: mpsc::Sender<ControlMsg>,
-    protocol_recv: ProtocolRecv<AVPacket>,
+    ky_channel: KyChannel,
+    video_protocol: VideoProtocol,
 }
 
 impl VideoRecvEndpoint {
-    pub async fn start(mut self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
+    pub async fn start(self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
         let msg = ControlMsg::RequestStart {
             endpoint_id: self.endpoint_id,
         };
         self.control_msg_sender.send(msg).await?;
-        self.protocol_recv.start().await?;
-        Ok(self.protocol_recv)
+        protocol::start_video_protocol_recv(self.ky_channel, self.video_protocol).await
     }
 }
 
@@ -78,11 +78,11 @@ impl KyProto {
         video_protocol: VideoProtocol,
     ) -> Result<VideoSendEndpoint, EndpointAlreadyRegistered> {
         let ky_channel = self.router.register(id)?;
-        let protocol_send = protocol::create_video_protocol_send(ky_channel, video_protocol);
         let start_request_receiver = self.control.register_start_request_receiver(id)?;
         let endpoint = VideoSendEndpoint {
             start_request_receiver,
-            protocol_send,
+            ky_channel,
+            video_protocol,
         };
         Ok(endpoint)
     }
@@ -93,12 +93,12 @@ impl KyProto {
         video_protocol: VideoProtocol,
     ) -> Result<VideoRecvEndpoint, EndpointAlreadyRegistered> {
         let ky_channel = self.router.register(id)?;
-        let protocol_recv = protocol::create_video_protocol_recv(ky_channel, video_protocol);
         let control_msg_sender = self.control.control_msg_sender().clone();
         let endpoint = VideoRecvEndpoint {
             endpoint_id: id,
             control_msg_sender,
-            protocol_recv,
+            ky_channel,
+            video_protocol,
         };
         Ok(endpoint)
     }

@@ -10,15 +10,13 @@ use kynet::{RecvStream, SendStream};
 
 pub(crate) struct ReliableProtocolSendDriver {
     ky_channel: KyChannel,
-    send: Option<SendStream>,
+    send: SendStream,
 }
 
 impl ReliableProtocolSendDriver {
-    pub(crate) fn new(ky_channel: KyChannel) -> Self {
-        Self {
-            ky_channel,
-            send: None,
-        }
+    pub(crate) async fn start(ky_channel: KyChannel) -> Result<Self, ProtocolError> {
+        let send = ky_channel.open_uni().await?;
+        Ok(Self { ky_channel, send })
     }
 }
 
@@ -27,28 +25,16 @@ impl ReliableProtocolSendDriver {
 impl ProtocolSendDriver for ReliableProtocolSendDriver {
     type Packet = AVPacket;
 
-    async fn start(&mut self) -> Result<(), ProtocolError> {
-        assert!(self.send.is_none());
-
-        let send = self.ky_channel.open_uni().await?;
-        self.send = Some(send);
-        Ok(())
-    }
-
     async fn send(&mut self, packet: AVPacket) -> Result<(), ProtocolError> {
-        assert!(self.send.is_some());
-
-        let send = self.send.as_mut().expect("Protocol not started");
-
         match packet {
             AVPacket::Codec(packet) => {
                 let header = packet.header.serialize();
-                send.write_all(&header).await?;
+                self.send.write_all(&header).await?;
             }
             AVPacket::Media(packet) => {
                 let header = packet.header.serialize();
-                send.write_all(&header).await?;
-                send.write_all(&packet.payload).await?;
+                self.send.write_all(&header).await?;
+                self.send.write_all(&packet.payload).await?;
             }
         }
 
@@ -58,15 +44,23 @@ impl ProtocolSendDriver for ReliableProtocolSendDriver {
 
 pub(crate) struct ReliableProtocolRecvDriver {
     ky_channel: KyChannel,
-    recv: Option<RecvStream>,
+    recv: RecvStream,
 }
 
 impl ReliableProtocolRecvDriver {
-    pub(crate) fn new(ky_channel: KyChannel) -> Self {
-        Self {
-            ky_channel,
-            recv: None,
-        }
+    pub(crate) async fn start(mut ky_channel: KyChannel) -> Result<Self, ProtocolError> {
+        let recv = loop {
+            match ky_channel.recv().await? {
+                KyRecvMsg::AcceptUni(recv) => {
+                    break recv;
+                }
+                KyRecvMsg::AcceptBi(..) => {
+                    Err(ProtocolError("Unexpected accept_bi()".to_string()))?
+                }
+                KyRecvMsg::Datagram(..) => { /* ignore */ }
+            }
+        };
+        Ok(Self { ky_channel, recv })
     }
 }
 
@@ -75,30 +69,7 @@ impl ReliableProtocolRecvDriver {
 impl ProtocolRecvDriver for ReliableProtocolRecvDriver {
     type Packet = AVPacket;
 
-    async fn start(&mut self) -> Result<(), ProtocolError> {
-        assert!(self.recv.is_none());
-
-        loop {
-            match self.ky_channel.recv().await? {
-                KyRecvMsg::AcceptUni(recv) => {
-                    self.recv = Some(recv);
-                    break;
-                }
-                KyRecvMsg::AcceptBi(..) => {
-                    Err(ProtocolError("Unexpected accept_bi()".to_string()))?
-                }
-                KyRecvMsg::Datagram(..) => { /* ignore */ }
-            }
-        }
-
-        Ok(())
-    }
-
     async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {
-        assert!(self.recv.is_some());
-
-        let recv = self.recv.as_mut().expect("Protocol not started");
-
-        util::read_packet(recv).await
+        util::read_packet(&mut self.recv).await
     }
 }

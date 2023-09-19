@@ -19,10 +19,6 @@ pub struct ProtocolSend<T> {
 }
 
 impl<T> ProtocolSend<T> {
-    pub(crate) async fn start(&mut self) -> Result<(), ProtocolError> {
-        self.driver.start().await
-    }
-
     pub async fn send(&mut self, packet: T) -> Result<(), ProtocolError> {
         self.driver.send(packet).await
     }
@@ -33,10 +29,6 @@ pub struct ProtocolRecv<T> {
 }
 
 impl<T> ProtocolRecv<T> {
-    pub(crate) async fn start(&mut self) -> Result<(), ProtocolError> {
-        self.driver.start().await
-    }
-
     pub async fn recv(&mut self) -> Result<Option<T>, ProtocolError> {
         self.driver.recv().await
     }
@@ -56,26 +48,26 @@ pub enum StreamType {
     Input,
 }
 
-pub(crate) fn create_video_protocol_send(
+pub(crate) async fn start_video_protocol_send(
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
-) -> ProtocolSend<AVPacket> {
+) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
     let driver = match video_protocol {
-        VideoProtocol::Reliable => Box::new(ReliableProtocolSendDriver::new(ky_channel)),
+        VideoProtocol::Reliable => Box::new(ReliableProtocolSendDriver::start(ky_channel).await?),
         _ => unimplemented!(),
     };
 
-    ProtocolSend { driver }
+    Ok(ProtocolSend { driver })
 }
 
-pub(crate) fn create_video_protocol_recv(
+pub(crate) async fn start_video_protocol_recv(
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
-) -> ProtocolRecv<AVPacket> {
+) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
     let driver = match video_protocol {
-        VideoProtocol::Reliable => Box::new(ReliableProtocolRecvDriver::new(ky_channel)),
+        VideoProtocol::Reliable => Box::new(ReliableProtocolRecvDriver::start(ky_channel).await?),
         _ => unimplemented!(),
     };
 
-    ProtocolRecv { driver }
+    Ok(ProtocolRecv { driver })
 }
