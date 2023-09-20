@@ -129,16 +129,16 @@ impl Control {
     async fn recv_msg(rx: &mut RecvStream) -> Result<Option<ControlMsg>, ControlError> {
         let mut buf = [0u8; 4];
         let res = rx.read_exact(&mut buf).await;
-        if let Err(ReadExactError::FinishedEarly) = res {
-            return Ok(None); // EOS
+        if let Err(ReadExactError::EndOfStream) = res {
+            return Ok(None);
         }
         res?;
 
         let len = u32::from_be_bytes(buf);
         let mut buf = vec![0u8; len as usize];
         let res = rx.read_exact(&mut buf).await;
-        if let Err(ReadExactError::FinishedEarly) = res {
-            return Ok(None); // EOS
+        if let Err(ReadExactError::EndOfStream) = res {
+            return Ok(None);
         }
         res?;
 

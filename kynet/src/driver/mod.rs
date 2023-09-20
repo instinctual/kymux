@@ -82,8 +82,11 @@ pub trait RecvStreamDriver: Debug {
         }
 
         assert!(offset <= buf.len());
+        if offset == 0 {
+            Err(ReadExactError::EndOfStream)?;
+        }
         if offset < buf.len() {
-            Err(ReadExactError::FinishedEarly)?;
+            Err(ReadExactError::PartialRead(offset))?;
         }
 
         Ok(())

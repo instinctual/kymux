@@ -138,11 +138,6 @@ impl RecvStreamDriver for QuinnRecvStreamDriver {
         let size = self.recv.read(buf).await?;
         Ok(size)
     }
-
-    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ReadExactError> {
-        let size = self.recv.read_exact(buf).await?;
-        Ok(size)
-    }
 }
 
 impl From<quinn::ConnectionError> for ConnectionError {
@@ -157,15 +152,6 @@ impl From<quinn::ReadError> for ReadError {
     fn from(value: quinn::ReadError) -> Self {
         Self::Generic {
             msg: format!("{value:?}"),
-        }
-    }
-}
-
-impl From<quinn::ReadExactError> for ReadExactError {
-    fn from(value: quinn::ReadExactError) -> Self {
-        match value {
-            quinn::ReadExactError::FinishedEarly => Self::FinishedEarly,
-            quinn::ReadExactError::ReadError(error) => Self::ReadError(error.into()),
         }
     }
 }
