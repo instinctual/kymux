@@ -8,8 +8,10 @@ use kynet::RecvStream;
 pub(crate) async fn read_packet(recv: &mut RecvStream) -> Result<Option<AVPacket>, ProtocolError> {
     let mut header = [0; 12];
     let res = recv.read_exact(&mut header).await;
-    if let Err(ReadExactError::EndOfStream) = res {
-        return Ok(None);
+    if let Err(ReadExactError::FinishedEarly(read)) = res {
+        if read == 0 {
+            return Ok(None);
+        }
     }
     res?;
 

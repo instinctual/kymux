@@ -26,10 +26,8 @@ pub enum ReadError {
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 pub enum ReadExactError {
-    #[error("end of stream without reading anything")]
-    EndOfStream,
     #[error("read exact finished early ({0} bytes read)")]
-    PartialRead(usize),
+    FinishedEarly(usize),
     #[error("read error")]
     ReadError(#[from] ReadError),
 }
