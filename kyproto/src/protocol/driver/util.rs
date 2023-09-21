@@ -18,11 +18,7 @@ pub(crate) async fn read_packet(recv: &mut RecvStream) -> Result<Option<AVPacket
         AVPacketHeader::Media(header) => {
             let mut buf = BytesMut::zeroed(header.size as usize);
 
-            let res = recv.read_exact(&mut buf).await;
-            if let Err(ReadExactError::EndOfStream) = res {
-                return Ok(None);
-            }
-            res?;
+            recv.read_exact(&mut buf).await?;
 
             AVPacket::Media(MediaPacket {
                 header,

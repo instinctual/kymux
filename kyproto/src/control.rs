@@ -136,11 +136,7 @@ impl Control {
 
         let len = u32::from_be_bytes(buf);
         let mut buf = vec![0u8; len as usize];
-        let res = rx.read_exact(&mut buf).await;
-        if let Err(ReadExactError::EndOfStream) = res {
-            return Ok(None);
-        }
-        res?;
+        rx.read_exact(&mut buf).await?;
 
         let msg = rmp_serde::from_slice(&buf)?;
 
