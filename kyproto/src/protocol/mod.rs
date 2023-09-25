@@ -8,6 +8,9 @@ use crate::protocol::driver::gopstream::{
     GopStreamProtocolRecvDriver, GopStreamProtocolSendDriver,
 };
 use crate::protocol::driver::reliable::{ReliableProtocolRecvDriver, ReliableProtocolSendDriver};
+use crate::protocol::driver::unreliable_fec::{
+    UnreliableFecProtocolRecvDriver, UnreliableFecProtocolSendDriver,
+};
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
 
@@ -62,7 +65,9 @@ pub(crate) async fn start_video_protocol_send(
         VideoProtocol::GopStream => ProtocolSend {
             driver: Box::new(GopStreamProtocolSendDriver::start(ky_channel).await?),
         },
-        _ => unimplemented!(),
+        VideoProtocol::UnreliableFec => ProtocolSend {
+            driver: Box::new(UnreliableFecProtocolSendDriver::start(ky_channel).await?),
+        },
     };
 
     Ok(protocol)
@@ -79,7 +84,9 @@ pub(crate) async fn start_video_protocol_recv(
         VideoProtocol::GopStream => ProtocolRecv {
             driver: Box::new(GopStreamProtocolRecvDriver::start(ky_channel).await?),
         },
-        _ => unimplemented!(),
+        VideoProtocol::UnreliableFec => ProtocolRecv {
+            driver: Box::new(UnreliableFecProtocolRecvDriver::start(ky_channel).await?),
+        },
     };
 
     Ok(protocol)

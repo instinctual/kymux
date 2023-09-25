@@ -14,12 +14,14 @@ byteorder = "1.4.3"
 bytes = "1.4.0"
 kynet = { version = "0.1", path = "../kynet", optional = true }
 log = "0.4.20"
+raptorq = "1.7.0"
 rmp-serde = "1.1.2"
 serde = { version = "1.0.188", features = ["derive"] }
 thiserror = "1.0.47"
-tokio = { version = "1.32.0", features = ["rt", "macros", "sync"], optional = true }
+tokio = { version = "1.32.0", features = ["rt", "macros", "sync", "time"], optional = true }
 wasm-bindgen = { version = "0.2.87", optional = true }
 wasm-bindgen-futures = { version = "0.4.37", optional = true }
+wasmtimer = "0.2.0"
 
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]

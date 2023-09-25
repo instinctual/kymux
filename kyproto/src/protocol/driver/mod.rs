@@ -6,6 +6,7 @@ use kynet::error::*;
 
 pub(crate) mod gopstream;
 pub(crate) mod reliable;
+pub(crate) mod unreliable_fec;
 pub(crate) mod util;
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
