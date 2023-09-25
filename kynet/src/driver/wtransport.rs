@@ -75,8 +75,11 @@ impl ConnectionDriver for WTransportConnectionDriver {
         Ok(())
     }
 
-    fn close(&self, _error_code: u32, _reason: &str) {
-        warn!("WTransport driver does not support closing a connection");
+    fn close(&self, error_code: u32, reason: &str) {
+        self.conn.close(
+            wtransport_proto::varint::VarInt::from(error_code),
+            reason.as_bytes(),
+        );
     }
 
     fn max_datagram_size(&self) -> Option<usize> {
