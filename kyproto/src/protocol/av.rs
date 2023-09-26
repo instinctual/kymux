@@ -13,6 +13,10 @@ pub enum AVPacketHeader {
     Media(MediaPacketHeader),
 }
 
+impl AVPacketHeader {
+    pub const SERIALIZED_SIZE: usize = 12;
+}
+
 #[derive(Debug)]
 pub struct CodecPacket {
     pub header: CodecPacketHeader,
@@ -40,21 +44,21 @@ pub struct MediaPacketHeader {
 
 impl CodecPacketHeader {
     pub fn serialize_to(&self, buf: &mut [u8]) {
-        assert!(buf.len() == 12);
+        assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
 
         BigEndian::write_u32(&mut buf[..4], self.codec);
         buf[4] = self.rotation;
         buf[5..].fill(0);
     }
 
-    pub fn serialize(&self) -> [u8; 12] {
-        let mut buf = [0; 12];
+    pub fn serialize(&self) -> [u8; AVPacketHeader::SERIALIZED_SIZE] {
+        let mut buf = [0; AVPacketHeader::SERIALIZED_SIZE];
         self.serialize_to(&mut buf);
         buf
     }
 
     pub fn deserialize(buf: &[u8]) -> Self {
-        assert!(buf.len() == 12);
+        assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
         assert!(buf[0] & 0x80 == 0); // codec packet
 
         let codec = BigEndian::read_u32(&buf[..4]);
@@ -65,7 +69,7 @@ impl CodecPacketHeader {
 
 impl MediaPacketHeader {
     pub fn serialize_to(&self, buf: &mut [u8]) {
-        assert!(buf.len() == 12);
+        assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
 
         assert!(self.pts & !0x1F_FF_FF_FF_FF_FF_FF_FF == 0);
         let mut pts_and_flags = self.pts;
@@ -81,14 +85,14 @@ impl MediaPacketHeader {
         BigEndian::write_u32(&mut buf[8..], self.size);
     }
 
-    pub fn serialize(&self) -> [u8; 12] {
-        let mut buf = [0; 12];
+    pub fn serialize(&self) -> [u8; AVPacketHeader::SERIALIZED_SIZE] {
+        let mut buf = [0; AVPacketHeader::SERIALIZED_SIZE];
         self.serialize_to(&mut buf);
         buf
     }
 
     pub fn deserialize(buf: &[u8]) -> Self {
-        assert!(buf.len() == 12);
+        assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
         assert!(buf[0] & 0x80 != 0); // media packet
 
         let pts_and_flags = BigEndian::read_u64(&buf[..8]);
@@ -108,7 +112,7 @@ impl MediaPacketHeader {
 
 impl AVPacketHeader {
     pub fn deserialize(buf: &[u8]) -> Self {
-        assert!(buf.len() == 12);
+        assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
 
         let is_codec = buf[0] & 0x80 == 0;
         if is_codec {
