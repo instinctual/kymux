@@ -41,7 +41,7 @@ impl Control {
                     error!("{err:?}");
                 }
             },
-            "control recv_msgs".to_string(),
+            "control recv_msgs",
         );
 
         let (channel_tx, channel_rx) = mpsc::channel(8);
@@ -51,7 +51,7 @@ impl Control {
                     error!("{err:?}");
                 }
             },
-            "control send_msgs".to_string(),
+            "control send_msgs",
         );
 
         let tasks = vec![rx_task, tx_task];

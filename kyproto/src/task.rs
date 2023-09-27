@@ -33,18 +33,22 @@ macro_rules! impl_spawn_task {
 
 impl Task {
     #[cfg(all(feature = "tokio-rt", not(target_family = "wasm")))]
-    pub(crate) fn spawn_task<F>(task: F, name: String) -> Self
+    pub(crate) fn spawn_task<F, S>(task: F, name: S) -> Self
     where
         F: Future<Output = ()> + Send + 'static,
+        S: Into<String>,
     {
+        let name = name.into();
         impl_spawn_task!(task, name)
     }
 
     #[cfg(all(feature = "js", target_family = "wasm"))]
-    pub(crate) fn spawn_task<F>(task: F, name: String) -> Self
+    pub(crate) fn spawn_task<F, S>(task: F, name: S) -> Self
     where
         F: Future<Output = ()> + 'static,
+        S: Into<String>,
     {
+        let name = name.into();
         impl_spawn_task!(task, name)
     }
 

@@ -47,7 +47,7 @@ impl Router {
                     error!("{err:?}");
                 }
             },
-            "accept_uni".to_string(),
+            "accept_uni",
         );
 
         let conn2 = conn.clone();
@@ -58,7 +58,7 @@ impl Router {
                     error!("{err:?}");
                 }
             },
-            "accept_bi".to_string(),
+            "accept_bi",
         );
 
         let conn2 = conn.clone();
@@ -69,7 +69,7 @@ impl Router {
                     error!("{err:?}");
                 }
             },
-            "recv_datagrams".to_string(),
+            "recv_datagrams",
         );
 
         let tasks = vec![accept_uni_task, accept_bi_task, recv_datagrams_task];

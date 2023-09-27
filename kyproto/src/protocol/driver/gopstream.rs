@@ -183,7 +183,7 @@ impl GopStreamProtocolRecvDriver {
                     error!("accept_uni_streams() error: {err}");
                 }
             },
-            "accept_unis".to_string(),
+            "accept_unis",
         );
 
         Ok(Self {
@@ -265,7 +265,7 @@ impl ProtocolRecvDriver for GopStreamProtocolRecvDriver {
                                 error!("read_packets() error: {err}");
                             }
                         },
-                        "read_packets".to_string(),
+                        "read_packets",
                     );
 
                     self.read_packets_task = Some(read_packets_task);
