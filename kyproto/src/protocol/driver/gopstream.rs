@@ -1,7 +1,7 @@
 use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
 use crate::protocol::driver::util;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
-use crate::router::{KyChannel, KyRecvMsg};
+use crate::router::KyChannel;
 use crate::task::Task;
 
 use async_trait::async_trait;
@@ -201,11 +201,8 @@ impl GopStreamProtocolRecvDriver {
         tx: mpsc::Sender<RecvMsg>,
     ) -> Result<(), ProtocolError> {
         loop {
-            if let KyRecvMsg::AcceptUni(recv) = ky_channel.recv().await? {
-                tx.send(RecvMsg::NewStream(recv)).await?;
-            } else {
-                Err(ProtocolError("Unexpected KyRecvMsg".to_string()))?;
-            }
+            let recv = ky_channel.accept_uni().await?;
+            tx.send(RecvMsg::NewStream(recv)).await?;
         }
     }
 

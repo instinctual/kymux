@@ -1,7 +1,7 @@
 use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
 use crate::protocol::driver::util;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
-use crate::router::{KyChannel, KyRecvMsg};
+use crate::router::KyChannel;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
@@ -49,17 +49,7 @@ pub(crate) struct ReliableProtocolRecvDriver {
 
 impl ReliableProtocolRecvDriver {
     pub(crate) async fn start(mut ky_channel: KyChannel) -> Result<Self, ProtocolError> {
-        let recv = loop {
-            match ky_channel.recv().await? {
-                KyRecvMsg::AcceptUni(recv) => {
-                    break recv;
-                }
-                KyRecvMsg::AcceptBi(..) => {
-                    Err(ProtocolError("Unexpected accept_bi()".to_string()))?
-                }
-                KyRecvMsg::Datagram(..) => { /* ignore */ }
-            }
-        };
+        let recv = ky_channel.accept_uni().await?;
         Ok(Self { ky_channel, recv })
     }
 }

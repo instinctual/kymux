@@ -23,14 +23,10 @@ type ClientMap = HashMap<u16, RouterClient>;
 #[error("router error: {0}")]
 pub(crate) struct RouterError(String);
 
-pub(crate) enum KyRecvMsg {
-    AcceptUni(RecvStream),
-    AcceptBi(SendStream, RecvStream),
-    Datagram(Bytes),
-}
-
 pub(crate) struct RouterClient {
-    tx: mpsc::Sender<KyRecvMsg>,
+    tx_unistreams: mpsc::Sender<RecvStream>,
+    tx_bistreams: mpsc::Sender<(SendStream, RecvStream)>,
+    tx_datagrams: mpsc::Sender<Bytes>,
 }
 
 pub(crate) struct Router {
@@ -96,19 +92,27 @@ impl Router {
     }
 
     pub fn register(&self, endpoint_id: u16) -> Result<KyChannel, EndpointAlreadyRegistered> {
-        let (tx, rx) = mpsc::channel(16);
+        let (tx_unistreams, rx_unistreams) = mpsc::channel(8);
+        let (tx_bistreams, rx_bistreams) = mpsc::channel(8);
+        let (tx_datagrams, rx_datagrams) = mpsc::channel(16);
 
         let mut clients = self.clients.lock();
         match clients.entry(endpoint_id) {
             Entry::Occupied(_) => return Err(EndpointAlreadyRegistered { endpoint_id }),
-            Entry::Vacant(entry) => entry.insert(RouterClient { tx }),
+            Entry::Vacant(entry) => entry.insert(RouterClient {
+                tx_unistreams,
+                tx_bistreams,
+                tx_datagrams,
+            }),
         };
 
         Ok(KyChannel::new(
             endpoint_id,
             self.conn.clone(),
             self.clients.clone(),
-            rx,
+            rx_unistreams,
+            rx_bistreams,
+            rx_datagrams,
         ))
     }
 
@@ -135,13 +139,13 @@ impl Router {
             match Self::read_endpoint_id(&mut recv).await {
                 Ok(endpoint_id) => {
                     let tx = if let Some(client) = clients.lock().get_mut(&endpoint_id) {
-                        Some(client.tx.clone())
+                        Some(client.tx_unistreams.clone())
                     } else {
                         None
                     };
 
                     if let Some(tx) = tx {
-                        tx.send(KyRecvMsg::AcceptUni(recv)).await.map_err(|err| {
+                        tx.send(recv).await.map_err(|err| {
                             RouterError(format!("accept_uni: channel closed: {err:?}"))
                         })?;
                     } else {
@@ -170,17 +174,15 @@ impl Router {
             match Self::read_endpoint_id(&mut recv).await {
                 Ok(endpoint_id) => {
                     let tx = if let Some(client) = clients.lock().get_mut(&endpoint_id) {
-                        Some(client.tx.clone())
+                        Some(client.tx_bistreams.clone())
                     } else {
                         None
                     };
 
                     if let Some(tx) = tx {
-                        tx.send(KyRecvMsg::AcceptBi(send, recv))
-                            .await
-                            .map_err(|err| {
-                                RouterError(format!("accept_bi: channel closed: {err:?}"))
-                            })?;
+                        tx.send((send, recv)).await.map_err(|err| {
+                            RouterError(format!("accept_bi: channel closed: {err:?}"))
+                        })?;
                     } else {
                         Err(RouterError(format!(
                             "accept_bi: unknown channel id: {endpoint_id}"
@@ -207,17 +209,15 @@ impl Router {
             if datagram.len() >= 2 {
                 let endpoint_id = u16::from_be_bytes((&datagram[..2]).try_into().unwrap());
                 let tx = if let Some(client) = clients.lock().get_mut(&endpoint_id) {
-                    Some(client.tx.clone())
+                    Some(client.tx_datagrams.clone())
                 } else {
                     None
                 };
 
                 if let Some(tx) = tx {
-                    tx.send(KyRecvMsg::Datagram(datagram))
-                        .await
-                        .map_err(|err| {
-                            RouterError(format!("recv_datagram: channel closed: {err:?}"))
-                        })?;
+                    tx.send(datagram).await.map_err(|err| {
+                        RouterError(format!("recv_datagram: channel closed: {err:?}"))
+                    })?;
                 } else {
                     // Not a hard error, datagrams may be delivered at any
                     // time, including once the endpoint has been removed
@@ -239,7 +239,9 @@ impl Drop for Router {
 pub(crate) struct KyChannel {
     endpoint_id: u16,
     conn: Connection,
-    rx: mpsc::Receiver<KyRecvMsg>,
+    rx_unistreams: mpsc::Receiver<RecvStream>,
+    rx_bistreams: mpsc::Receiver<(SendStream, RecvStream)>,
+    rx_datagrams: mpsc::Receiver<Bytes>,
     dropper: KyChannelDropper,
 }
 
@@ -252,7 +254,9 @@ pub(crate) struct KyChannelSend {
 pub(crate) struct KyChannelRecv {
     endpoint_id: u16,
     conn: Connection,
-    rx: mpsc::Receiver<KyRecvMsg>,
+    rx_unistreams: mpsc::Receiver<RecvStream>,
+    rx_bistreams: mpsc::Receiver<(SendStream, RecvStream)>,
+    rx_datagrams: mpsc::Receiver<Bytes>,
     dropper: KyArc<KyChannelDropper>,
 }
 
@@ -319,14 +323,22 @@ impl KyChannelSend {
 }
 
 impl KyChannelRecv {
-    async fn recv_(rx: &mut mpsc::Receiver<KyRecvMsg>) -> Result<KyRecvMsg, RouterError> {
+    async fn recv_<T>(rx: &mut mpsc::Receiver<T>) -> Result<T, RouterError> {
         rx.recv()
             .await
             .ok_or_else(|| RouterError("Ky channel closed".to_string()))
     }
 
-    pub async fn recv(&mut self) -> Result<KyRecvMsg, RouterError> {
-        Self::recv_(&mut self.rx).await
+    pub async fn accept_uni(&mut self) -> Result<RecvStream, RouterError> {
+        Self::recv_(&mut self.rx_unistreams).await
+    }
+
+    pub async fn accept_bi(&mut self) -> Result<(SendStream, RecvStream), RouterError> {
+        Self::recv_(&mut self.rx_bistreams).await
+    }
+
+    pub async fn recv_datagram(&mut self) -> Result<Bytes, RouterError> {
+        Self::recv_(&mut self.rx_datagrams).await
     }
 }
 
@@ -335,12 +347,16 @@ impl KyChannel {
         endpoint_id: u16,
         conn: Connection,
         clients: KyArc<KyMutex<ClientMap>>,
-        rx: mpsc::Receiver<KyRecvMsg>,
+        rx_unistreams: mpsc::Receiver<RecvStream>,
+        rx_bistreams: mpsc::Receiver<(SendStream, RecvStream)>,
+        rx_datagrams: mpsc::Receiver<Bytes>,
     ) -> Self {
         Self {
             endpoint_id,
             conn,
-            rx,
+            rx_unistreams,
+            rx_bistreams,
+            rx_datagrams,
             dropper: KyChannelDropper {
                 endpoint_id,
                 clients,
@@ -356,12 +372,20 @@ impl KyChannel {
         KyChannelSend::open_bi_(&self.conn, self.endpoint_id).await
     }
 
-    pub async fn recv(&mut self) -> Result<KyRecvMsg, RouterError> {
-        KyChannelRecv::recv_(&mut self.rx).await
+    pub async fn accept_uni(&mut self) -> Result<RecvStream, RouterError> {
+        KyChannelRecv::recv_(&mut self.rx_unistreams).await
+    }
+
+    pub async fn accept_bi(&mut self) -> Result<(SendStream, RecvStream), RouterError> {
+        KyChannelRecv::recv_(&mut self.rx_bistreams).await
     }
 
     pub async fn send_datagram(&self, data: Bytes) -> Result<(), SendDatagramError> {
         KyChannelSend::send_datagram_(&self.conn, data).await
+    }
+
+    pub async fn recv_datagram(&mut self) -> Result<Bytes, RouterError> {
+        KyChannelRecv::recv_(&mut self.rx_datagrams).await
     }
 
     pub fn max_datagram_size(&self) -> Option<usize> {
@@ -376,7 +400,9 @@ impl KyChannel {
         let KyChannel {
             endpoint_id,
             conn,
-            rx,
+            rx_unistreams,
+            rx_bistreams,
+            rx_datagrams,
             dropper,
         } = self;
 
@@ -391,7 +417,9 @@ impl KyChannel {
         let recv = KyChannelRecv {
             endpoint_id,
             conn,
-            rx,
+            rx_unistreams,
+            rx_bistreams,
+            rx_datagrams,
             dropper,
         };
 
