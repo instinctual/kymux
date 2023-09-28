@@ -68,7 +68,7 @@ impl Control {
     ) -> Result<oneshot::Receiver<()>, EndpointAlreadyRegistered> {
         let mut waiters = self.waiters.lock();
         match waiters.entry(endpoint_id) {
-            Entry::Occupied(_) => return Err(EndpointAlreadyRegistered { endpoint_id }),
+            Entry::Occupied(_) => Err(EndpointAlreadyRegistered { endpoint_id }),
             Entry::Vacant(entry) => {
                 let (tx, rx) = oneshot::channel();
                 entry.insert(tx);
@@ -155,7 +155,7 @@ impl Control {
                 if let Some(sender) = waiters.remove(endpoint_id) {
                     sender
                         .send(())
-                        .map_err(|_| ControlError(format!("Start request sender error")))?;
+                        .map_err(|_| ControlError("Start request sender error".to_string()))?;
                 } else {
                     Err(ControlError(format!(
                         "Received unexpected start request for endpoint {endpoint_id}"
