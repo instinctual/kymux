@@ -270,8 +270,10 @@ impl KyChannelSend {
         let mut send = conn.open_uni().await?;
         Router::write_endpoint_id(&mut send, endpoint_id)
             .await
-            .map_err(|err| ConnectionError::Generic {
-                msg: format!("Could not write endpoint_id {endpoint_id}: {err:?}"),
+            .map_err(|err| {
+                ConnectionError(format!(
+                    "Could not write endpoint_id {endpoint_id}: {err:?}"
+                ))
             })?;
         Ok(send)
     }
@@ -283,8 +285,10 @@ impl KyChannelSend {
         let (mut send, recv) = conn.open_bi().await?;
         Router::write_endpoint_id(&mut send, endpoint_id)
             .await
-            .map_err(|err| ConnectionError::Generic {
-                msg: format!("Could not write endpoint_id {endpoint_id}: {err:?}"),
+            .map_err(|err| {
+                ConnectionError(format!(
+                    "Could not write endpoint_id {endpoint_id}: {err:?}"
+                ))
             })?;
         Ok((send, recv))
     }

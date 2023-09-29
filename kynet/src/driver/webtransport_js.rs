@@ -69,11 +69,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
                 .incoming_unidirectional_streams()
                 .get_reader()
                 .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                .or_else(|err| {
-                    Err(ConnectionError::Generic {
-                        msg: format!("Unexpected reader type {err:?}"),
-                    })
-                })?;
+                .or_else(|err| Err(ConnectionError(format!("Unexpected reader type {err:?}"))))?;
             *reader = Some(uni_streams_reader);
         }
 
@@ -83,9 +79,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
             .as_bool()
             .unwrap_or(false);
         if done {
-            return Err(ConnectionError::Generic {
-                msg: "No more unistreams".to_string(),
-            });
+            return Err(ConnectionError("No more unistreams".to_string()));
         }
 
         let recv_stream = js_sys::Reflect::get(&obj, &JsValue::from("value"))?
@@ -103,11 +97,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
                 .incoming_bidirectional_streams()
                 .get_reader()
                 .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                .or_else(|err| {
-                    Err(ConnectionError::Generic {
-                        msg: format!("Unexpected reader type {err:?}"),
-                    })
-                })?;
+                .or_else(|err| Err(ConnectionError(format!("Unexpected reader type {err:?}"))))?;
             *reader = Some(bi_streams_reader);
         }
 
@@ -117,9 +107,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
             .as_bool()
             .unwrap_or(false);
         if done {
-            return Err(ConnectionError::Generic {
-                msg: "No more bistreams".to_string(),
-            });
+            return Err(ConnectionError("No more bistreams".to_string()));
         }
 
         let bi_stream = js_sys::Reflect::get(&obj, &JsValue::from("value"))?
@@ -150,9 +138,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
             .as_bool()
             .unwrap_or(false);
         if done {
-            return Err(ConnectionError::Generic {
-                msg: "Could not read datagrams".to_string(),
-            });
+            return Err(ConnectionError("Could not read datagrams".to_string()));
         }
 
         let vec = js_sys::Reflect::get(&obj, &JsValue::from("value"))?
@@ -286,17 +272,13 @@ impl RecvStreamDriver for WebTransportJSRecvStreamDriver {
 
 impl From<JsValue> for ConnectionError {
     fn from(value: JsValue) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(format!("{value:?}"))
     }
 }
 
 impl From<JsValue> for ReadError {
     fn from(value: JsValue) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(format!("{value:?}"))
     }
 }
 
@@ -308,17 +290,13 @@ impl From<JsValue> for ReadExactError {
 
 impl From<JsValue> for WriteError {
     fn from(value: JsValue) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(format!("{value:?}"))
     }
 }
 
 impl From<JsValue> for SendDatagramError {
     fn from(value: JsValue) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(format!("{value:?}"))
     }
 }
 

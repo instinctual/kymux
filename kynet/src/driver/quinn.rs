@@ -142,37 +142,25 @@ impl RecvStreamDriver for QuinnRecvStreamDriver {
 
 impl From<quinn::ConnectionError> for ConnectionError {
     fn from(value: quinn::ConnectionError) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(value.to_string())
     }
 }
 
 impl From<quinn::ReadError> for ReadError {
     fn from(value: quinn::ReadError) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(value.to_string())
     }
 }
 
 impl From<quinn::WriteError> for WriteError {
     fn from(value: quinn::WriteError) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(value.to_string())
     }
 }
 
 impl From<quinn::SendDatagramError> for SendDatagramError {
     fn from(value: quinn::SendDatagramError) -> Self {
-        match value {
-            quinn::SendDatagramError::UnsupportedByPeer | quinn::SendDatagramError::Disabled => {
-                Self::UnsupportedByPeer
-            }
-            quinn::SendDatagramError::TooLarge => Self::TooLarge,
-            quinn::SendDatagramError::ConnectionLost(error) => Self::ConnectionError(error.into()),
-        }
+        Self(value.to_string())
     }
 }
 

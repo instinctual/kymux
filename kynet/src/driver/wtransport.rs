@@ -145,46 +145,30 @@ impl RecvStreamDriver for WTransportRecvStreamDriver {
 
 impl From<wtransport::error::ConnectionError> for ConnectionError {
     fn from(value: wtransport::error::ConnectionError) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(value.to_string())
     }
 }
 
 impl From<wtransport::error::StreamOpeningError> for ConnectionError {
     fn from(value: wtransport::error::StreamOpeningError) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(value.to_string())
     }
 }
 
 impl From<wtransport::error::StreamReadError> for ReadError {
     fn from(value: wtransport::error::StreamReadError) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(value.to_string())
     }
 }
 
 impl From<wtransport::error::StreamWriteError> for WriteError {
     fn from(value: wtransport::error::StreamWriteError) -> Self {
-        Self::Generic {
-            msg: format!("{value:?}"),
-        }
+        Self(value.to_string())
     }
 }
 
 impl From<wtransport::error::SendDatagramError> for SendDatagramError {
     fn from(value: wtransport::error::SendDatagramError) -> Self {
-        match value {
-            wtransport::error::SendDatagramError::UnsupportedByPeer => Self::UnsupportedByPeer,
-            wtransport::error::SendDatagramError::TooLarge => Self::TooLarge,
-            wtransport::error::SendDatagramError::NotConnected => {
-                Self::ConnectionError(ConnectionError::Generic {
-                    msg: "Sending datagram while connection closed".to_string(),
-                })
-            }
-        }
+        Self(value.to_string())
     }
 }
