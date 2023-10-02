@@ -1,4 +1,5 @@
 use thiserror::Error;
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Error, Clone)]
 #[error("endpoint already registed: {endpoint_id:X}")]
@@ -9,6 +10,18 @@ pub struct EndpointAlreadyRegistered {
 #[derive(Debug, Error, Clone)]
 #[error("Protoocol error: {0}")]
 pub struct ProtocolError(pub String);
+
+impl From<oneshot::error::RecvError> for ProtocolError {
+    fn from(err: oneshot::error::RecvError) -> Self {
+        Self(format!("{err}"))
+    }
+}
+
+impl<T> From<mpsc::error::SendError<T>> for ProtocolError {
+    fn from(err: mpsc::error::SendError<T>) -> Self {
+        Self(format!("{err}"))
+    }
+}
 
 #[cfg(all(feature = "js", target_family = "wasm"))]
 mod js_error {

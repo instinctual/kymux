@@ -103,15 +103,3 @@ impl KyProto {
         Ok(endpoint)
     }
 }
-
-impl From<oneshot::error::RecvError> for ProtocolError {
-    fn from(err: oneshot::error::RecvError) -> Self {
-        Self(format!("{err}"))
-    }
-}
-
-impl<T> From<mpsc::error::SendError<T>> for ProtocolError {
-    fn from(err: mpsc::error::SendError<T>) -> Self {
-        Self(format!("{err}"))
-    }
-}
