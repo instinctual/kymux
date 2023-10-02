@@ -1,6 +1,5 @@
 #![allow(unused)] // TODO remove
 
-use crate::error::EndpointAlreadyRegistered;
 use crate::runtime;
 use crate::task::Task;
 use crate::util::{KyArc, KyMutex};
@@ -22,6 +21,12 @@ type ClientMap = HashMap<u16, RouterClient>;
 #[derive(Debug, Error)]
 #[error("router error: {0}")]
 pub(crate) struct RouterError(String);
+
+#[derive(Debug, Error)]
+#[error("endpoint already registered: {endpoint_id:X}")]
+pub(crate) struct EndpointAlreadyRegistered {
+    pub endpoint_id: u16,
+}
 
 pub(crate) struct RouterClient {
     tx_unistreams: mpsc::Sender<RecvStream>,

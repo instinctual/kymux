@@ -1,11 +1,8 @@
+use crate::control::ControlError;
+use crate::router::EndpointAlreadyRegistered;
+
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
-
-#[derive(Debug, Error, Clone)]
-#[error("endpoint already registed: {endpoint_id:X}")]
-pub struct EndpointAlreadyRegistered {
-    pub endpoint_id: u16,
-}
 
 #[derive(Debug, Error, Clone)]
 #[error("Protoocol error: {0}")]
@@ -19,6 +16,18 @@ impl From<oneshot::error::RecvError> for ProtocolError {
 
 impl<T> From<mpsc::error::SendError<T>> for ProtocolError {
     fn from(err: mpsc::error::SendError<T>) -> Self {
+        Self(err.to_string())
+    }
+}
+
+impl From<ControlError> for ProtocolError {
+    fn from(err: ControlError) -> Self {
+        Self(err.to_string())
+    }
+}
+
+impl From<EndpointAlreadyRegistered> for ProtocolError {
+    fn from(err: EndpointAlreadyRegistered) -> Self {
         Self(err.to_string())
     }
 }

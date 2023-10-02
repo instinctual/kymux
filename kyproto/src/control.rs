@@ -1,4 +1,3 @@
-use crate::error::EndpointAlreadyRegistered;
 use crate::task::Task;
 use crate::util::{KyArc, KyMutex};
 
@@ -65,10 +64,12 @@ impl Control {
     pub(crate) fn register_start_request_receiver(
         &self,
         endpoint_id: u16,
-    ) -> Result<oneshot::Receiver<()>, EndpointAlreadyRegistered> {
+    ) -> Result<oneshot::Receiver<()>, ControlError> {
         let mut waiters = self.waiters.lock();
         match waiters.entry(endpoint_id) {
-            Entry::Occupied(_) => Err(EndpointAlreadyRegistered { endpoint_id }),
+            Entry::Occupied(_) => Err(ControlError(format!(
+                "Start request already registered for endpoint {endpoint_id:X}"
+            ))),
             Entry::Vacant(entry) => {
                 let (tx, rx) = oneshot::channel();
                 entry.insert(tx);

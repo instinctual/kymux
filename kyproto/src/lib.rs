@@ -76,7 +76,7 @@ impl KyProto {
         &self,
         id: u16,
         video_protocol: VideoProtocol,
-    ) -> Result<VideoSendEndpoint, EndpointAlreadyRegistered> {
+    ) -> Result<VideoSendEndpoint, ProtocolError> {
         let ky_channel = self.router.register(id)?;
         let start_request_receiver = self.control.register_start_request_receiver(id)?;
         let endpoint = VideoSendEndpoint {
@@ -91,7 +91,7 @@ impl KyProto {
         &self,
         id: u16,
         video_protocol: VideoProtocol,
-    ) -> Result<VideoRecvEndpoint, EndpointAlreadyRegistered> {
+    ) -> Result<VideoRecvEndpoint, ProtocolError> {
         let ky_channel = self.router.register(id)?;
         let control_msg_sender = self.control.control_msg_sender().clone();
         let endpoint = VideoRecvEndpoint {
