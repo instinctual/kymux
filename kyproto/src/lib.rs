@@ -1,13 +1,12 @@
 #[cfg(all(not(feature = "js"), not(feature = "tokio-rt")))]
 compile_error!("No feature selected, pass either --features=js or --features=tokio-rt");
 
-use control::{Control, ControlMsg};
+use control::{Control, ReadyNotifier};
 use error::*;
 use router::{KyChannel, Router};
 
 use kynet::error::ConnectionError;
 use kynet::Connection;
-use tokio::sync::{mpsc, oneshot};
 
 pub use protocol::{
     AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
@@ -23,31 +22,27 @@ mod task;
 mod util;
 
 pub struct VideoSendEndpoint {
-    start_request_receiver: oneshot::Receiver<()>,
+    ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 }
 
 impl VideoSendEndpoint {
-    pub async fn started(self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
-        self.start_request_receiver.await?;
+    pub async fn ready(self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
+        self.ready_notifier.ready().await?;
         protocol::start_video_protocol_send(self.ky_channel, self.video_protocol).await
     }
 }
 
 pub struct VideoRecvEndpoint {
-    endpoint_id: u16,
-    control_msg_sender: mpsc::Sender<ControlMsg>,
+    ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 }
 
 impl VideoRecvEndpoint {
-    pub async fn start(self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
-        let msg = ControlMsg::RequestStart {
-            endpoint_id: self.endpoint_id,
-        };
-        self.control_msg_sender.send(msg).await?;
+    pub async fn ready(self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
+        self.ready_notifier.ready().await?;
         protocol::start_video_protocol_recv(self.ky_channel, self.video_protocol).await
     }
 }
@@ -72,31 +67,31 @@ impl KyProto {
         Ok(Self { router, control })
     }
 
-    pub fn register_video_endpoint_send(
+    pub async fn register_video_endpoint(
         &self,
         id: u16,
         video_protocol: VideoProtocol,
     ) -> Result<VideoSendEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
-        let start_request_receiver = self.control.register_start_request_receiver(id)?;
         let endpoint = VideoSendEndpoint {
-            start_request_receiver,
+            ready_notifier,
             ky_channel,
             video_protocol,
         };
         Ok(endpoint)
     }
 
-    pub fn register_video_endpoint_recv(
+    pub fn connect_video_endpoint(
         &self,
         id: u16,
         video_protocol: VideoProtocol,
     ) -> Result<VideoRecvEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
-        let control_msg_sender = self.control.control_msg_sender().clone();
         let endpoint = VideoRecvEndpoint {
-            endpoint_id: id,
-            control_msg_sender,
+            ready_notifier,
             ky_channel,
             video_protocol,
         };
