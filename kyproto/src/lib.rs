@@ -21,26 +21,26 @@ mod runtime;
 mod task;
 mod util;
 
-pub struct VideoSendEndpoint {
+pub struct VideoServerEndpoint {
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 }
 
-impl VideoSendEndpoint {
+impl VideoServerEndpoint {
     pub async fn ready(self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
         self.ready_notifier.ready().await?;
         protocol::start_video_protocol_send(self.ky_channel, self.video_protocol).await
     }
 }
 
-pub struct VideoRecvEndpoint {
+pub struct VideoClientEndpoint {
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 }
 
-impl VideoRecvEndpoint {
+impl VideoClientEndpoint {
     pub async fn ready(self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
         self.ready_notifier.ready().await?;
         protocol::start_video_protocol_recv(self.ky_channel, self.video_protocol).await
@@ -71,11 +71,11 @@ impl KyProto {
         &self,
         id: u16,
         video_protocol: VideoProtocol,
-    ) -> Result<VideoSendEndpoint, ProtocolError> {
+    ) -> Result<VideoServerEndpoint, ProtocolError> {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
-        let endpoint = VideoSendEndpoint {
+        let endpoint = VideoServerEndpoint {
             ready_notifier,
             ky_channel,
             video_protocol,
@@ -87,10 +87,10 @@ impl KyProto {
         &self,
         id: u16,
         video_protocol: VideoProtocol,
-    ) -> Result<VideoRecvEndpoint, ProtocolError> {
+    ) -> Result<VideoClientEndpoint, ProtocolError> {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
-        let endpoint = VideoRecvEndpoint {
+        let endpoint = VideoClientEndpoint {
             ready_notifier,
             ky_channel,
             video_protocol,
