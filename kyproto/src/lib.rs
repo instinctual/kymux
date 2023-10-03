@@ -22,6 +22,7 @@ mod task;
 mod util;
 
 pub struct VideoServerEndpoint {
+    pub id: u16,
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
@@ -35,6 +36,7 @@ impl VideoServerEndpoint {
 }
 
 pub struct VideoClientEndpoint {
+    pub id: u16,
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
@@ -76,6 +78,7 @@ impl KyProto {
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
         let endpoint = VideoServerEndpoint {
+            id,
             ready_notifier,
             ky_channel,
             video_protocol,
@@ -91,6 +94,7 @@ impl KyProto {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
         let endpoint = VideoClientEndpoint {
+            id,
             ready_notifier,
             ky_channel,
             video_protocol,
