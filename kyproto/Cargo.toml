@@ -26,13 +26,13 @@ wasmtimer = "0.2.0"
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]
 default = []
-tokio-rt = [
-    "kynet/quinn",
-    "dep:tokio",
-]
 js = [
-    "kynet/webtransport-js",
+    "kynet-webtransport-js",
     "tokio/sync",
     "dep:wasm-bindgen",
     "dep:wasm-bindgen-futures",
 ]
+kynet-quinn = ["kynet/quinn"]
+kynet-webtransport-js = ["kynet/webtransport-js"]
+kynet-wtransport = ["kynet/wtransport"]
+tokio-rt = ["dep:tokio"]
