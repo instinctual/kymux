@@ -32,7 +32,7 @@ js = [
     "dep:wasm-bindgen",
     "dep:wasm-bindgen-futures",
 ]
-kynet-quinn = ["kynet/quinn"]
-kynet-webtransport-js = ["kynet/webtransport-js"]
-kynet-wtransport = ["kynet/wtransport"]
+kynet-quinn = ["kynet/kynet-quinn"]
+kynet-webtransport-js = ["kynet/kynet-webtransport-js"]
+kynet-wtransport = ["kynet/kynet-wtransport"]
 tokio-rt = ["dep:tokio"]

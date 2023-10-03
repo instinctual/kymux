@@ -38,6 +38,6 @@ wtransport-proto = { version = "0.1.5", optional = true }
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]
 default = []
-quinn = ["dep:quinn"]
-webtransport-js = ["dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys"]
-wtransport = ["dep:wtransport", "dep:wtransport-proto"]
+kynet-quinn = ["dep:quinn"]
+kynet-webtransport-js = ["dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys"]
+kynet-wtransport = ["dep:wtransport", "dep:wtransport-proto"]

@@ -6,19 +6,19 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-#[cfg(all(feature = "quinn", not(target_family = "wasm")))]
+#[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
 mod quinn;
-#[cfg(all(feature = "quinn", target_family = "wasm"))]
+#[cfg(all(feature = "kynet-quinn", target_family = "wasm"))]
 compile_error!("Quinn is not available for wasm");
 
-#[cfg(all(feature = "webtransport-js", target_family = "wasm"))]
+#[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
 mod webtransport_js;
-#[cfg(all(feature = "webtransport-js", not(target_family = "wasm")))]
+#[cfg(all(feature = "kynet-webtransport-js", not(target_family = "wasm")))]
 compile_error!("WebTransportJS is only available for wasm");
 
-#[cfg(all(feature = "wtransport", not(target_family = "wasm")))]
+#[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
 mod wtransport;
-#[cfg(all(feature = "wtransport", target_family = "wasm"))]
+#[cfg(all(feature = "kynet-wtransport", target_family = "wasm"))]
 compile_error!("WTransport is not available for wasm");
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
