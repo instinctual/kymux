@@ -14,7 +14,7 @@ use kynet::{Connection, RecvStream, SendStream};
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 type ClientMap = HashMap<u16, RouterClient>;
 
