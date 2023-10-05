@@ -5,6 +5,7 @@ use control::{Control, ReadyNotifier};
 use error::*;
 use router::{KyChannel, Router};
 
+use async_trait::async_trait;
 use kynet::error::ConnectionError;
 use kynet::Connection;
 
@@ -21,29 +22,54 @@ mod runtime;
 mod task;
 mod util;
 
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+pub trait ProtocolEndpoint {
+    type Protocol;
+
+    fn id(&self) -> u16;
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError>;
+}
+
 pub struct VideoServerEndpoint {
-    pub id: u16,
+    id: u16,
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 }
 
-impl VideoServerEndpoint {
-    pub async fn ready(self) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for VideoServerEndpoint {
+    type Protocol = ProtocolSend<AVPacket>;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
         protocol::start_video_protocol_send(self.ky_channel, self.video_protocol).await
     }
 }
 
 pub struct VideoClientEndpoint {
-    pub id: u16,
+    id: u16,
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
 }
 
-impl VideoClientEndpoint {
-    pub async fn ready(self) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for VideoClientEndpoint {
+    type Protocol = ProtocolRecv<AVPacket>;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
         protocol::start_video_protocol_recv(self.ky_channel, self.video_protocol).await
     }
