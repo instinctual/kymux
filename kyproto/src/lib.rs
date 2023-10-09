@@ -75,6 +75,48 @@ impl ProtocolEndpoint for VideoClientEndpoint {
     }
 }
 
+pub struct AudioServerEndpoint {
+    id: u16,
+    ready_notifier: ReadyNotifier,
+    ky_channel: KyChannel,
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for AudioServerEndpoint {
+    type Protocol = ProtocolSend<AVPacket>;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
+        self.ready_notifier.ready().await?;
+        protocol::start_audio_protocol_send(self.ky_channel).await
+    }
+}
+
+pub struct AudioClientEndpoint {
+    id: u16,
+    ready_notifier: ReadyNotifier,
+    ky_channel: KyChannel,
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for AudioClientEndpoint {
+    type Protocol = ProtocolRecv<AVPacket>;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
+        self.ready_notifier.ready().await?;
+        protocol::start_audio_protocol_recv(self.ky_channel).await
+    }
+}
+
 pub struct KyProto {
     router: Router,
     control: Control,
@@ -124,6 +166,32 @@ impl KyProto {
             ready_notifier,
             ky_channel,
             video_protocol,
+        };
+        Ok(endpoint)
+    }
+
+    pub async fn register_audio_endpoint(
+        &self,
+        id: u16,
+    ) -> Result<AudioServerEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        self.control.register_endpoint(id).await?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = AudioServerEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
+        };
+        Ok(endpoint)
+    }
+
+    pub fn connect_audio_endpoint(&self, id: u16) -> Result<AudioClientEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = AudioClientEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
         };
         Ok(endpoint)
     }

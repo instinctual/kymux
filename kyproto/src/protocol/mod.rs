@@ -91,3 +91,23 @@ pub(crate) async fn start_video_protocol_recv(
 
     Ok(protocol)
 }
+
+pub(crate) async fn start_audio_protocol_send(
+    ky_channel: KyChannel,
+) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
+    let protocol = ProtocolSend {
+        driver: Box::new(ReliableProtocolSendDriver::start(ky_channel).await?),
+    };
+
+    Ok(protocol)
+}
+
+pub(crate) async fn start_audio_protocol_recv(
+    ky_channel: KyChannel,
+) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
+    let protocol = ProtocolRecv {
+        driver: Box::new(ReliableProtocolRecvDriver::start(ky_channel).await?),
+    };
+
+    Ok(protocol)
+}
