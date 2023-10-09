@@ -9,6 +9,7 @@ pub use crate::protocol::input::InputPacket;
 use crate::router::KyChannel;
 
 use async_trait::async_trait;
+use serde::Serialize;
 use thiserror::Error;
 
 mod av;
@@ -35,7 +36,7 @@ impl<T> ProtocolRecv<T> {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum VideoProtocol {
     Reliable,
     GopStream,
