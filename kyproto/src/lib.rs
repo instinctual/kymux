@@ -139,6 +139,7 @@ impl ProtocolEndpoint for InputEndpoint {
 }
 
 pub struct KyProto {
+    conn: Connection,
     router: Router,
     control: Control,
 }
@@ -153,8 +154,12 @@ impl KyProto {
             .map_err(|_| ConnectionError("Dummy byte write failed".to_string()))?;
 
         let control = Control::start(tx, rx);
-        let router = Router::start(conn);
-        Ok(Self { router, control })
+        let router = Router::start(conn.clone());
+        Ok(Self {
+            conn,
+            router,
+            control,
+        })
     }
 
     pub async fn accept(conn: Connection) -> Result<Self, ConnectionError> {
@@ -166,8 +171,12 @@ impl KyProto {
             .map_err(|_| ConnectionError("Dummy byte read failed".to_string()))?;
 
         let control = Control::start(tx, rx);
-        let router = Router::start(conn);
-        Ok(Self { router, control })
+        let router = Router::start(conn.clone());
+        Ok(Self {
+            conn,
+            router,
+            control,
+        })
     }
 
     pub async fn register_video_endpoint(
@@ -250,5 +259,11 @@ impl KyProto {
             ky_channel,
         };
         Ok(endpoint)
+    }
+}
+
+impl Drop for KyProto {
+    fn drop(&mut self) {
+        self.conn.close(0, "KyProto closed");
     }
 }
