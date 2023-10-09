@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use kynet::error::*;
 
 pub(crate) mod av;
+pub(crate) mod input;
 pub(crate) mod util;
 
 #[cfg(target_family = "wasm")]

@@ -10,8 +10,8 @@ use kynet::error::ConnectionError;
 use kynet::Connection;
 
 pub use protocol::{
-    AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
-    ProtocolRecv, ProtocolSend, VideoProtocol,
+    AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, InputPacket, MediaPacket,
+    MediaPacketHeader, ProtocolRecv, ProtocolSend, VideoProtocol,
 };
 
 mod control;
@@ -117,6 +117,27 @@ impl ProtocolEndpoint for AudioClientEndpoint {
     }
 }
 
+pub struct InputEndpoint {
+    id: u16,
+    ready_notifier: ReadyNotifier,
+    ky_channel: KyChannel,
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for InputEndpoint {
+    type Protocol = (ProtocolSend<InputPacket>, ProtocolRecv<InputPacket>);
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
+        self.ready_notifier.ready().await?;
+        protocol::start_input_protocol(self.ky_channel).await
+    }
+}
+
 pub struct KyProto {
     router: Router,
     control: Control,
@@ -189,6 +210,29 @@ impl KyProto {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
         let endpoint = AudioClientEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
+        };
+        Ok(endpoint)
+    }
+
+    pub async fn register_input_endpoint(&self, id: u16) -> Result<InputEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        self.control.register_endpoint(id).await?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = InputEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
+        };
+        Ok(endpoint)
+    }
+
+    pub fn connect_input_endpoint(&self, id: u16) -> Result<InputEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = InputEndpoint {
             id,
             ready_notifier,
             ky_channel,

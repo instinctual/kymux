@@ -5,6 +5,7 @@ pub use crate::protocol::av::{
     AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
 };
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
+pub use crate::protocol::input::InputPacket;
 use crate::router::KyChannel;
 
 use async_trait::async_trait;
@@ -12,6 +13,7 @@ use thiserror::Error;
 
 mod av;
 pub(crate) mod driver;
+mod input;
 
 pub struct ProtocolSend<T> {
     driver: Box<dyn ProtocolSendDriver<Packet = T>>,
@@ -121,4 +123,23 @@ pub(crate) async fn start_audio_protocol_recv(
     };
 
     Ok(protocol)
+}
+
+pub(crate) async fn start_input_protocol(
+    ky_channel: KyChannel,
+) -> Result<(ProtocolSend<InputPacket>, ProtocolRecv<InputPacket>), ProtocolError> {
+    let (ky_channel_recv, ky_channel_send) = ky_channel.into_split();
+
+    let protocol_send = ProtocolSend {
+        driver: Box::new(
+            driver::input::reliable::ReliableProtocolSendDriver::start(ky_channel_send).await?,
+        ),
+    };
+    let protocol_recv = ProtocolRecv {
+        driver: Box::new(
+            driver::input::reliable::ReliableProtocolRecvDriver::start(ky_channel_recv).await?,
+        ),
+    };
+
+    Ok((protocol_send, protocol_recv))
 }
