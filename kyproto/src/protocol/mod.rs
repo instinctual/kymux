@@ -4,11 +4,11 @@ use crate::error::ProtocolError;
 pub use crate::protocol::av::{
     AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
 };
-use crate::protocol::driver::gopstream::{
+use crate::protocol::driver::av::gopstream::{
     GopStreamProtocolRecvDriver, GopStreamProtocolSendDriver,
 };
-use crate::protocol::driver::reliable::{ReliableProtocolRecvDriver, ReliableProtocolSendDriver};
-use crate::protocol::driver::unreliable_fec::{
+use crate::protocol::driver::av::reliable::{ReliableProtocolRecvDriver, ReliableProtocolSendDriver};
+use crate::protocol::driver::av::unreliable_fec::{
     UnreliableFecProtocolRecvDriver, UnreliableFecProtocolSendDriver,
 };
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
