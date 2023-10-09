@@ -7,7 +7,9 @@ pub use crate::protocol::av::{
 use crate::protocol::driver::av::gopstream::{
     GopStreamProtocolRecvDriver, GopStreamProtocolSendDriver,
 };
-use crate::protocol::driver::av::reliable::{ReliableProtocolRecvDriver, ReliableProtocolSendDriver};
+use crate::protocol::driver::av::reliable::{
+    ReliableProtocolRecvDriver, ReliableProtocolSendDriver,
+};
 use crate::protocol::driver::av::unreliable_fec::{
     UnreliableFecProtocolRecvDriver, UnreliableFecProtocolSendDriver,
 };

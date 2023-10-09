@@ -1,5 +1,5 @@
 use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
-use crate::protocol::driver::util;
+use crate::protocol::driver::av;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
 use crate::task::Task;
@@ -214,7 +214,7 @@ impl GopStreamProtocolRecvDriver {
         recv.read_exact(&mut ids).await?;
         let codec_gen = BigEndian::read_u32(&ids[..4]);
         let config_gen = BigEndian::read_u32(&ids[4..]);
-        while let Some(packet) = util::read_packet(&mut recv).await? {
+        while let Some(packet) = av::read_packet(&mut recv).await? {
             tx.send(RecvMsg::NewPacket {
                 packet,
                 codec_gen,

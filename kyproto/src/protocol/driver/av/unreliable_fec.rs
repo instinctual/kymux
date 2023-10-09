@@ -1,5 +1,5 @@
 use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket, MediaPacketHeader};
-use crate::protocol::driver::util;
+use crate::protocol::driver::av;
 use crate::protocol::driver::util::seq::Sequencer;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
@@ -468,7 +468,7 @@ impl UnreliableFecProtocolRecvDriver {
             let raw_kypacket_seq = BigEndian::read_u32(&seqs[..4]);
             let raw_group_seq = BigEndian::read_u32(&seqs[4..]);
 
-            let packet = util::read_packet(&mut stream)
+            let packet = av::read_packet(&mut stream)
                 .await?
                 .ok_or_else(|| ProtocolError("Missing packet data on stream".to_string()))?;
 

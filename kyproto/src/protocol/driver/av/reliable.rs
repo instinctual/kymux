@@ -1,5 +1,5 @@
 use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
-use crate::protocol::driver::util;
+use crate::protocol::driver::av;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
 
@@ -60,6 +60,6 @@ impl ProtocolRecvDriver for ReliableProtocolRecvDriver {
     type Packet = AVPacket;
 
     async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {
-        util::read_packet(&mut self.recv).await
+        av::read_packet(&mut self.recv).await
     }
 }
