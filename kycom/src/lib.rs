@@ -32,7 +32,7 @@ impl KyComAddr {
     }
 
     pub fn url(&self) -> String {
-        format!("kycom://{}/{:X}", self.addr, self.endpoint_id)
+        format!("kymux://{}/{:X}", self.addr, self.endpoint_id)
     }
 }
 
