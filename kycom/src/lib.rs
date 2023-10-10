@@ -7,12 +7,14 @@ use std::sync::{Arc, Mutex};
 use bytes::BytesMut;
 use kyproto::error::ProtocolError;
 use kyproto::{
-    AVPacket, AVPacketHeader, AudioClientEndpoint, AudioServerEndpoint, CodecPacket, MediaPacket,
-    ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint, VideoServerEndpoint,
+    AVPacket, AVPacketHeader, AudioClientEndpoint, AudioServerEndpoint, CodecPacket, InputEndpoint,
+    InputPacket, MediaPacket, ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint,
+    VideoServerEndpoint,
 };
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
@@ -257,6 +259,77 @@ impl Forwarder<AudioClientEndpoint> {
 impl Forwarder<AudioServerEndpoint> {
     pub async fn forward(self) -> Result<()> {
         self.forward_server_av_packets().await
+    }
+}
+
+impl Forwarder<InputEndpoint> {
+    pub async fn forward(self) -> Result<()> {
+        let (tcp_stream, (protocol_send, protocol_recv)) = self.start().await?;
+        let (tcp_read, tcp_write) = tcp_stream.into_split();
+
+        let send_task =
+            tokio::spawn(async move { Self::forward_send(tcp_read, protocol_send).await });
+        let recv_task =
+            tokio::spawn(async move { Self::forward_recv(tcp_write, protocol_recv).await });
+        let (send_result, recv_result) = tokio::join!(send_task, recv_task);
+        let _ = send_result?;
+        let _ = recv_result?;
+
+        Ok(())
+    }
+
+    async fn forward_send(
+        mut tcp_stream: OwnedReadHalf,
+        mut protocol: ProtocolSend<InputPacket>,
+    ) -> Result<()> {
+        while let Some(packet) = Self::recv_input_packet(&mut tcp_stream).await? {
+            protocol.send(packet).await.map_err(to_io_error)?;
+        }
+
+        Ok(())
+    }
+
+    async fn forward_recv(
+        mut tcp_stream: OwnedWriteHalf,
+        mut protocol: ProtocolRecv<InputPacket>,
+    ) -> Result<()> {
+        while let Some(packet) = protocol.recv().await.map_err(to_io_error)? {
+            Self::send_input_packet(packet, &mut tcp_stream).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn send_input_packet(packet: InputPacket, tcp_stream: &mut OwnedWriteHalf) -> Result<()> {
+        let size =
+            u16::try_from(packet.payload.len()).expect("Input packet size must fit in 16 bits");
+
+        let type_ = [packet.type_];
+        tcp_stream.write_all(&type_).await?;
+        tcp_stream.write_all(&size.to_be_bytes()).await?;
+        tcp_stream.write_all(&packet.payload).await?;
+
+        Ok(())
+    }
+
+    async fn recv_input_packet(tcp_stream: &mut OwnedReadHalf) -> Result<Option<InputPacket>> {
+        let type_ = tcp_stream.read_u8().await?;
+
+        let mut buf = [0; 2];
+        if let Err(err) = tcp_stream.read_exact(&mut buf).await {
+            if err.kind() == ErrorKind::UnexpectedEof {
+                return Ok(None); // EOF
+            }
+        }
+        let size = u16::from_be_bytes(buf);
+
+        let mut buf = BytesMut::zeroed(size as usize);
+        tcp_stream.read_exact(&mut buf).await?;
+        let payload = buf.freeze();
+
+        let packet = InputPacket { type_, payload };
+
+        Ok(Some(packet))
     }
 }
 
