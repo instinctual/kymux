@@ -146,24 +146,24 @@ impl<T: ProtocolEndpoint> Forwarder<T> {
         KyComAddr::new(self.addr, self.endpoint.id())
     }
 
-    async fn tcp_stream(rx: oneshot::Receiver<TcpStream>) -> Result<TcpStream> {
-        let tcp_stream = rx.await.map_err(|_| {
+    async fn start(self) -> Result<(TcpStream, T::Protocol)> {
+        let mut tcp_stream = self.rx.await.map_err(|_| {
             Error::new(
                 ErrorKind::ConnectionAborted,
                 "TcpStream sender dropped".to_string(),
             )
         })?;
 
-        Ok(tcp_stream)
+        let protocol = self.endpoint.ready().await.map_err(to_io_error)?;
+        tcp_stream.write(&[0]).await?;
+
+        Ok((tcp_stream, protocol))
     }
 }
 
 impl Forwarder<VideoClientEndpoint> {
     pub async fn forward(self) -> Result<()> {
-        let mut tcp_stream = Self::tcp_stream(self.rx).await?;
-
-        let mut protocol = self.endpoint.ready().await.map_err(to_io_error)?;
-        tcp_stream.write(&[0]).await?;
+        let (mut tcp_stream, mut protocol) = self.start().await?;
 
         while let Some(packet) = protocol.recv().await.map_err(to_io_error)? {
             Self::send_av_packet(packet, &mut tcp_stream).await?;
@@ -191,10 +191,7 @@ impl Forwarder<VideoClientEndpoint> {
 
 impl Forwarder<VideoServerEndpoint> {
     pub async fn forward(self) -> Result<()> {
-        let mut tcp_stream = Self::tcp_stream(self.rx).await?;
-
-        let mut protocol = self.endpoint.ready().await.map_err(to_io_error)?;
-        tcp_stream.write(&[0]).await?;
+        let (mut tcp_stream, mut protocol) = self.start().await?;
 
         while let Some(packet) = Self::recv_av_packet(&mut tcp_stream).await? {
             protocol.send(packet).await.map_err(to_io_error)?;
