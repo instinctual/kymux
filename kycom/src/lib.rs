@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use bytes::BytesMut;
 use kyproto::error::ProtocolError;
 use kyproto::{
-    AVPacket, AVPacketHeader, CodecPacket, MediaPacket, ProtocolEndpoint, VideoClientEndpoint,
-    VideoServerEndpoint,
+    AVPacket, AVPacketHeader, CodecPacket, MediaPacket, ProtocolEndpoint, ProtocolRecv,
+    ProtocolSend, VideoClientEndpoint, VideoServerEndpoint,
 };
 #[allow(unused)]
 use log::{debug, error, info, warn};
@@ -161,8 +161,11 @@ impl<T: ProtocolEndpoint> Forwarder<T> {
     }
 }
 
-impl Forwarder<VideoClientEndpoint> {
-    pub async fn forward(self) -> Result<()> {
+impl<T> Forwarder<T>
+where
+    T: ProtocolEndpoint<Protocol = ProtocolRecv<AVPacket>>,
+{
+    async fn forward_client_av_packets(self) -> Result<()> {
         let (mut tcp_stream, mut protocol) = self.start().await?;
 
         while let Some(packet) = protocol.recv().await.map_err(to_io_error)? {
@@ -189,8 +192,11 @@ impl Forwarder<VideoClientEndpoint> {
     }
 }
 
-impl Forwarder<VideoServerEndpoint> {
-    pub async fn forward(self) -> Result<()> {
+impl<T> Forwarder<T>
+where
+    T: ProtocolEndpoint<Protocol = ProtocolSend<AVPacket>>,
+{
+    pub async fn forward_server_av_packets(self) -> Result<()> {
         let (mut tcp_stream, mut protocol) = self.start().await?;
 
         while let Some(packet) = Self::recv_av_packet(&mut tcp_stream).await? {
@@ -227,6 +233,18 @@ impl Forwarder<VideoServerEndpoint> {
         };
 
         Ok(Some(packet))
+    }
+}
+
+impl Forwarder<VideoClientEndpoint> {
+    pub async fn forward(self) -> Result<()> {
+        self.forward_client_av_packets().await
+    }
+}
+
+impl Forwarder<VideoServerEndpoint> {
+    pub async fn forward(self) -> Result<()> {
+        self.forward_server_av_packets().await
     }
 }
 
