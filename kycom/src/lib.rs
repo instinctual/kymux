@@ -166,16 +166,22 @@ impl Forwarder<VideoClientEndpoint> {
         tcp_stream.write(&[0]).await?;
 
         while let Some(packet) = protocol.recv().await.map_err(to_io_error)? {
-            match packet {
-                AVPacket::Codec(packet) => {
-                    let header = packet.header.serialize();
-                    tcp_stream.write_all(&header).await?;
-                }
-                AVPacket::Media(packet) => {
-                    let header = packet.header.serialize();
-                    tcp_stream.write_all(&header).await?;
-                    tcp_stream.write_all(&packet.payload).await?;
-                }
+            Self::send_av_packet(packet, &mut tcp_stream).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn send_av_packet(packet: AVPacket, tcp_stream: &mut TcpStream) -> Result<()> {
+        match packet {
+            AVPacket::Codec(packet) => {
+                let header = packet.header.serialize();
+                tcp_stream.write_all(&header).await?;
+            }
+            AVPacket::Media(packet) => {
+                let header = packet.header.serialize();
+                tcp_stream.write_all(&header).await?;
+                tcp_stream.write_all(&packet.payload).await?;
             }
         }
 
@@ -190,34 +196,40 @@ impl Forwarder<VideoServerEndpoint> {
         let mut protocol = self.endpoint.ready().await.map_err(to_io_error)?;
         tcp_stream.write(&[0]).await?;
 
-        let mut header = [0; 12];
-        loop {
-            if let Err(err) = tcp_stream.read_exact(&mut header).await {
-                if err.kind() == ErrorKind::UnexpectedEof {
-                    return Ok(()); // EOF
-                }
-            }
-
-            // XXX The header serialization format is specific to the IPC
-            // (KyCom), but for convenience we use the same in KyProto
-            // protocols implementation, so the code is shared
-            let header = AVPacketHeader::deserialize(&header);
-            let packet = match header {
-                AVPacketHeader::Media(header) => {
-                    let mut buf = BytesMut::zeroed(header.size as usize);
-
-                    tcp_stream.read_exact(&mut buf).await?;
-
-                    AVPacket::Media(MediaPacket {
-                        header,
-                        payload: buf.freeze(),
-                    })
-                }
-                AVPacketHeader::Codec(header) => AVPacket::Codec(CodecPacket { header }),
-            };
-
+        while let Some(packet) = Self::recv_av_packet(&mut tcp_stream).await? {
             protocol.send(packet).await.map_err(to_io_error)?;
         }
+
+        Ok(())
+    }
+
+    async fn recv_av_packet(tcp_stream: &mut TcpStream) -> Result<Option<AVPacket>> {
+        let mut header = [0; 12];
+        if let Err(err) = tcp_stream.read_exact(&mut header).await {
+            if err.kind() == ErrorKind::UnexpectedEof {
+                return Ok(None); // EOF
+            }
+        }
+
+        // XXX The header serialization format is specific to the IPC
+        // (KyCom), but for convenience we use the same in KyProto
+        // protocols implementation, so the code is shared
+        let header = AVPacketHeader::deserialize(&header);
+        let packet = match header {
+            AVPacketHeader::Media(header) => {
+                let mut buf = BytesMut::zeroed(header.size as usize);
+
+                tcp_stream.read_exact(&mut buf).await?;
+
+                AVPacket::Media(MediaPacket {
+                    header,
+                    payload: buf.freeze(),
+                })
+            }
+            AVPacketHeader::Codec(header) => AVPacket::Codec(CodecPacket { header }),
+        };
+
+        Ok(Some(packet))
     }
 }
 
