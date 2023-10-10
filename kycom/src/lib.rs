@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use bytes::BytesMut;
 use kyproto::error::ProtocolError;
 use kyproto::{
-    AVPacket, AVPacketHeader, CodecPacket, MediaPacket, ProtocolEndpoint, ProtocolRecv,
-    ProtocolSend, VideoClientEndpoint, VideoServerEndpoint,
+    AVPacket, AVPacketHeader, AudioClientEndpoint, AudioServerEndpoint, CodecPacket, MediaPacket,
+    ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint, VideoServerEndpoint,
 };
 #[allow(unused)]
 use log::{debug, error, info, warn};
@@ -243,6 +243,18 @@ impl Forwarder<VideoClientEndpoint> {
 }
 
 impl Forwarder<VideoServerEndpoint> {
+    pub async fn forward(self) -> Result<()> {
+        self.forward_server_av_packets().await
+    }
+}
+
+impl Forwarder<AudioClientEndpoint> {
+    pub async fn forward(self) -> Result<()> {
+        self.forward_client_av_packets().await
+    }
+}
+
+impl Forwarder<AudioServerEndpoint> {
     pub async fn forward(self) -> Result<()> {
         self.forward_server_av_packets().await
     }
