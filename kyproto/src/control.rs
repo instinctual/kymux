@@ -43,10 +43,15 @@ impl ReadyNotifier {
     }
 }
 
+enum PendingReady {
+    AwaitingLocal,
+    AwaitingRemote(oneshot::Sender<()>),
+}
+
 struct State {
     pending_register_ack: KyMutex<HashMap<u16, oneshot::Sender<()>>>,
     pending_connect: KyMutex<HashSet<u16>>,
-    pending_ready: KyMutex<HashMap<u16, oneshot::Sender<()>>>,
+    pending_ready: KyMutex<HashMap<u16, PendingReady>>,
 }
 
 impl State {
@@ -126,12 +131,30 @@ impl Control {
     ) -> Result<ReadyNotifier, ControlError> {
         let mut pending_ready = self.state.pending_ready.lock();
         match pending_ready.entry(endpoint_id) {
-            Entry::Occupied(_) => Err(ControlError(format!(
-                "Endpoint already registered for ready notifications: {endpoint_id:X}"
-            )))?,
+            Entry::Occupied(entry) => {
+                match entry.get() {
+                    PendingReady::AwaitingRemote(_) => Err(ControlError(format!(
+                        "Endpoint already registered for ready notifications: {endpoint_id:X}"
+                    )))?,
+                    PendingReady::AwaitingLocal => {
+                        entry.remove_entry();
+
+                        // The Ready message has already been received from the peer
+                        let (tx, rx) = oneshot::channel();
+                        tx.send(())
+                            .map_err(|_| ControlError("Ready sender error".to_string()))?;
+
+                        Ok(ReadyNotifier {
+                            endpoint_id,
+                            tx: self.tx.clone(),
+                            rx,
+                        })
+                    }
+                }
+            }
             Entry::Vacant(entry) => {
                 let (tx, rx) = oneshot::channel();
-                entry.insert(tx);
+                entry.insert(PendingReady::AwaitingRemote(tx));
                 Ok(ReadyNotifier {
                     endpoint_id,
                     tx: self.tx.clone(),
@@ -227,13 +250,21 @@ impl Control {
             }
             ControlMsg::Ready { endpoint_id } => {
                 let mut pending_ready = state.pending_ready.lock();
-                if let Some(tx) = pending_ready.remove(&endpoint_id) {
-                    tx.send(())
-                        .map_err(|_| ControlError("Ready sender error".to_string()))?;
-                } else {
-                    Err(ControlError(format!(
-                        "Received unexpected ready notification for endpoint {endpoint_id:X}"
-                    )))?;
+                match pending_ready.remove(&endpoint_id) {
+                    Some(PendingReady::AwaitingRemote(tx)) => {
+                        // Notify the client that the remote is ready
+                        tx.send(())
+                            .map_err(|_| ControlError("Ready sender error".to_string()))?;
+                    }
+                    Some(PendingReady::AwaitingLocal) => Err(ControlError(format!(
+                        "Received multiple ready notifications for endpoint {endpoint_id:X}"
+                    )))?,
+                    None => {
+                        // Ready message received from the peer before the
+                        // client connected to the endpoint
+                        let old = pending_ready.insert(endpoint_id, PendingReady::AwaitingLocal);
+                        assert!(old.is_none());
+                    }
                 }
             }
         }
