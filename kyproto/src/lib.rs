@@ -145,14 +145,26 @@ pub struct KyProto {
 
 impl KyProto {
     pub async fn connect(conn: Connection) -> Result<Self, ConnectionError> {
-        let (tx, rx) = conn.open_bi().await?;
+        let (mut tx, rx) = conn.open_bi().await?;
+
+        // Force a packet to be sent so that accept_bi() can detect bi-stream opening
+        tx.write(&[0])
+            .await
+            .map_err(|_| ConnectionError("Dummy byte write failed".to_string()))?;
+
         let control = Control::start(tx, rx);
         let router = Router::start(conn);
         Ok(Self { router, control })
     }
 
     pub async fn accept(conn: Connection) -> Result<Self, ConnectionError> {
-        let (tx, rx) = conn.accept_bi().await?;
+        let (tx, mut rx) = conn.accept_bi().await?;
+
+        // Consume the dummy byte used to detect the bi-stream immediately
+        rx.read(&mut [0])
+            .await
+            .map_err(|_| ConnectionError("Dummy byte read failed".to_string()))?;
+
         let control = Control::start(tx, rx);
         let router = Router::start(conn);
         Ok(Self { router, control })
