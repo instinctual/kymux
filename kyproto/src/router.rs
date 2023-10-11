@@ -85,17 +85,6 @@ impl Router {
         }
     }
 
-    pub fn stop(&mut self) {
-        let tasks = std::mem::take(&mut self.tasks);
-        for task in tasks {
-            let name = task.name.clone();
-            let ret = task.cancel();
-            if ret.is_err() {
-                warn!("Task {name} seems to be already stopped");
-            }
-        }
-    }
-
     pub fn register(&self, endpoint_id: u16) -> Result<KyChannel, EndpointAlreadyRegistered> {
         let (tx_unistreams, rx_unistreams) = mpsc::channel(8);
         let (tx_bistreams, rx_bistreams) = mpsc::channel(8);
@@ -237,7 +226,14 @@ impl Router {
 
 impl Drop for Router {
     fn drop(&mut self) {
-        self.stop();
+        let tasks = std::mem::take(&mut self.tasks);
+        for task in tasks {
+            let name = task.name.clone();
+            let ret = task.cancel();
+            if ret.is_err() {
+                warn!("Task {name} seems to be already stopped");
+            }
+        }
     }
 }
 

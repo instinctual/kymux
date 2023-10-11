@@ -141,17 +141,6 @@ impl Control {
         }
     }
 
-    pub(crate) fn stop(&mut self) {
-        let tasks = std::mem::take(&mut self.tasks);
-        for task in tasks {
-            let name = task.name.clone();
-            let ret = task.cancel();
-            if ret.is_err() {
-                warn!("Task {name} seems to be already stopped");
-            }
-        }
-    }
-
     async fn send_msgs(
         mut control_rx: mpsc::Receiver<ControlMsg>,
         mut stream_tx: SendStream,
@@ -255,7 +244,14 @@ impl Control {
 
 impl Drop for Control {
     fn drop(&mut self) {
-        self.stop();
+        let tasks = std::mem::take(&mut self.tasks);
+        for task in tasks {
+            let name = task.name.clone();
+            let ret = task.cancel();
+            if ret.is_err() {
+                warn!("Task {name} seems to be already stopped");
+            }
+        }
     }
 }
 
