@@ -42,13 +42,6 @@ pub enum VideoProtocol {
     UnreliableFec,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StreamType {
-    Video(VideoProtocol),
-    Audio,
-    Input,
-}
-
 pub(crate) async fn start_video_protocol_send(
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
