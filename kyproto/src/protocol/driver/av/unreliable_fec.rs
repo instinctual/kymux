@@ -3,6 +3,7 @@ use crate::protocol::driver::av;
 use crate::protocol::driver::util::seq::Sequencer;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
+use crate::runtime::{self, Instant};
 use crate::task::Task;
 
 use std::time::Duration;
@@ -14,7 +15,6 @@ use kynet::{RecvStream, SendStream};
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::sync::mpsc;
-use wasmtimer::std::Instant;
 
 /**
 * This protocol, tailored for video streaming, transmits config packets
@@ -701,7 +701,7 @@ impl ProtocolRecvDriver for UnreliableFecProtocolRecvDriver {
                 Some(_) = async move {
                     match deadline {
                         Some(instant) => {
-                            wasmtimer::tokio::sleep_until(instant).await;
+                            runtime::sleep_until(instant).await;
                             Some(())
                         },
                         None => None,
