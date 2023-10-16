@@ -1,6 +1,9 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
 
+#[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
+use crate::driver::webtransport_js::WebTransportJSConnectionDriver;
+
 use std::fmt::Debug;
 
 #[cfg(target_family = "wasm")]
@@ -9,6 +12,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use bytes::Bytes;
+
+#[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
+pub mod webtransport_js {
+    pub use crate::driver::webtransport_js::{
+        DecodeHexError, WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
+    };
+}
 
 mod driver;
 pub mod error;
@@ -37,6 +47,14 @@ impl Connection {
         Self {
             driver: Rc::new(driver),
         }
+    }
+
+    #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
+    pub async fn webtransport_js_connect(
+        url: &str,
+        options: &webtransport_js::WebTransportJSOptions,
+    ) -> Result<Self, ConnectionError> {
+        WebTransportJSConnectionDriver::connect(url, options).await
     }
 
     pub async fn open_uni(&self) -> Result<SendStream, ConnectionError> {

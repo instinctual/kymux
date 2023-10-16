@@ -12,7 +12,7 @@ mod quinn;
 compile_error!("Quinn is not available for wasm");
 
 #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
-mod webtransport_js;
+pub(crate) mod webtransport_js;
 #[cfg(all(feature = "kynet-webtransport-js", not(target_family = "wasm")))]
 compile_error!("WebTransportJS is only available for wasm");
 

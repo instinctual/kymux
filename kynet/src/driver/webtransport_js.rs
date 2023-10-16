@@ -4,20 +4,122 @@ use crate::{
 };
 
 use std::cell::RefCell;
+use std::num::ParseIntError;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use thiserror::Error;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 impl From<web_sys::WebTransport> for Connection {
     fn from(value: web_sys::WebTransport) -> Self {
-        Self::new(WebTransportJSConnectionDriver::new(value))
+        Self::new(WebTransportJSConnectionDriver::wrap(value))
+    }
+}
+
+pub struct WebTransportJSOptions {
+    pub congestion_control: WebTransportJSCongestionControl,
+    pub require_unreliable: bool,
+    pub server_certificate_hashes: Vec<WebTransportJSHash>,
+}
+
+impl WebTransportJSOptions {
+    fn to_web_sys(&self) -> web_sys::WebTransportOptions {
+        let mut options = web_sys::WebTransportOptions::new();
+        options.require_unreliable(self.require_unreliable);
+        options.congestion_control(self.congestion_control.to_web_sys());
+
+        let hashes = js_sys::Array::new();
+        for hash in &self.server_certificate_hashes {
+            hashes.push(&hash.to_web_sys());
+        }
+
+        options.server_certificate_hashes(&hashes);
+
+        options
+    }
+}
+
+impl Default for WebTransportJSOptions {
+    fn default() -> Self {
+        Self {
+            congestion_control: WebTransportJSCongestionControl::Default,
+            require_unreliable: false,
+            server_certificate_hashes: Vec::new(),
+        }
+    }
+}
+
+pub enum WebTransportJSCongestionControl {
+    Default,
+    Throughput,
+    LowLatency,
+}
+
+impl WebTransportJSCongestionControl {
+    fn to_web_sys(&self) -> web_sys::WebTransportCongestionControl {
+        match &self {
+            Self::Default => web_sys::WebTransportCongestionControl::Default,
+            Self::Throughput => web_sys::WebTransportCongestionControl::Throughput,
+            Self::LowLatency => web_sys::WebTransportCongestionControl::LowLatency,
+        }
+    }
+}
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("decode hex error")]
+pub enum DecodeHexError {
+    OddLength,
+    ParseInt(#[from] ParseIntError),
+}
+
+pub struct WebTransportJSHash {
+    algorithm: String,
+    value: Vec<u8>,
+}
+
+impl WebTransportJSHash {
+    pub fn new(algorithm: impl Into<String>, value: Vec<u8>) -> Self {
+        Self {
+            algorithm: algorithm.into(),
+            value,
+        }
+    }
+
+    pub fn new_from_hex(algorithm: impl Into<String>, hash: &str) -> Result<Self, DecodeHexError> {
+        let hash = Self::hex_to_bytes(hash)?;
+        let this = Self::new(algorithm, hash);
+        Ok(this)
+    }
+
+    pub fn new_sha256_from_hex(hash: &str) -> Result<Self, DecodeHexError> {
+        Self::new_from_hex("sha-256", hash)
+    }
+
+    fn hex_to_bytes(s: &str) -> Result<Vec<u8>, DecodeHexError> {
+        if s.len() % 2 == 0 {
+            (0..s.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.into()))
+                .collect()
+        } else {
+            Err(DecodeHexError::OddLength)
+        }
+    }
+
+    fn to_web_sys(&self) -> web_sys::WebTransportHash {
+        let array = js_sys::Uint8Array::from(self.value.as_ref());
+
+        let mut obj = web_sys::WebTransportHash::new();
+        obj.algorithm(&self.algorithm);
+        obj.value(&array);
+        obj
     }
 }
 
 #[derive(Debug)]
-struct WebTransportJSConnectionDriver {
+pub(crate) struct WebTransportJSConnectionDriver {
     web_transport: web_sys::WebTransport,
     uni_streams_reader: RefCell<Option<web_sys::ReadableStreamDefaultReader>>,
     bi_streams_reader: RefCell<Option<web_sys::ReadableStreamDefaultReader>>,
@@ -26,7 +128,7 @@ struct WebTransportJSConnectionDriver {
 }
 
 impl WebTransportJSConnectionDriver {
-    fn new(web_transport: web_sys::WebTransport) -> Self {
+    fn wrap(web_transport: web_sys::WebTransport) -> Self {
         Self {
             web_transport,
             uni_streams_reader: RefCell::new(None),
@@ -34,6 +136,16 @@ impl WebTransportJSConnectionDriver {
             datagrams_reader: RefCell::new(None),
             datagrams_writer: RefCell::new(None),
         }
+    }
+
+    pub async fn connect(
+        url: &str,
+        options: &WebTransportJSOptions,
+    ) -> Result<Connection, ConnectionError> {
+        let options = options.to_web_sys();
+        let web_transport = web_sys::WebTransport::new_with_options(url, &options)?;
+        JsFuture::from(web_transport.ready()).await?;
+        Ok(web_transport.into())
     }
 }
 
