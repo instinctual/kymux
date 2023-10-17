@@ -3,6 +3,10 @@ use crate::{
     Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
 };
 
+use std::net::{Ipv6Addr, SocketAddr};
+use std::path::Path;
+use std::time::Duration;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 #[allow(unused)]
@@ -10,18 +14,122 @@ use log::{debug, error, info, warn};
 
 impl From<wtransport::Connection> for Connection {
     fn from(value: wtransport::Connection) -> Self {
-        Self::new(WTransportConnectionDriver::new(value))
+        Self::new(WTransportConnectionDriver::wrap(value))
+    }
+}
+
+pub struct Certificate(wtransport::tls::Certificate);
+
+impl Certificate {
+    pub fn new(certificate: Vec<u8>, private_key: Vec<u8>) -> Self {
+        Self(wtransport::tls::Certificate::new(
+            vec![certificate],
+            private_key,
+        ))
+    }
+
+    pub async fn load(
+        cert_path: impl AsRef<Path>,
+        key_path: impl AsRef<Path>,
+    ) -> std::io::Result<Self> {
+        let certificate = wtransport::tls::Certificate::load(cert_path, key_path)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{e:?}")))?;
+        Ok(Self(certificate))
+        // TODO use async loading
+        // <https://github.com/BiagioFesta/wtransport/issues/81>
+        // <https://github.com/BiagioFesta/wtransport/pull/82>
+    }
+}
+
+pub struct WTransportServerOptions {
+    pub max_idle_timeout: Option<Duration>,
+    pub keep_alive_interval: Option<Duration>,
+}
+
+impl Default for WTransportServerOptions {
+    fn default() -> Self {
+        Self {
+            max_idle_timeout: None,
+            keep_alive_interval: None,
+        }
+    }
+}
+
+pub struct WTransportServer {
+    endpoint: wtransport::Endpoint<wtransport::endpoint::endpoint_side::Server>,
+}
+
+impl WTransportServer {
+    pub fn start_on_addr(
+        addr: SocketAddr,
+        cert: Certificate,
+        options: &WTransportServerOptions,
+    ) -> Result<Self, ConnectionError> {
+        let config = wtransport::ServerConfig::builder()
+            .with_bind_address(addr)
+            .with_certificate(cert.0)
+            .max_idle_timeout(options.max_idle_timeout)?
+            .keep_alive_interval(options.keep_alive_interval)
+            .build();
+
+        let endpoint = wtransport::Endpoint::server(config)?;
+        Ok(Self { endpoint })
+    }
+
+    pub fn start(
+        port: u16,
+        cert: Certificate,
+        options: &WTransportServerOptions,
+    ) -> Result<Self, ConnectionError> {
+        let addr = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port);
+        Self::start_on_addr(addr, cert, options)
+    }
+
+    pub async fn accept(&self) -> Result<Connection, ConnectionError> {
+        let request = self.endpoint.accept().await.await?;
+        let conn = request.accept().await?;
+        Ok(conn.into())
+    }
+}
+
+pub struct WTransportClientOptions {
+    max_idle_timeout: Option<Duration>,
+    keep_alive_interval: Option<Duration>,
+}
+
+impl Default for WTransportClientOptions {
+    fn default() -> Self {
+        Self {
+            max_idle_timeout: None,
+            keep_alive_interval: None,
+        }
     }
 }
 
 #[derive(Debug)]
-struct WTransportConnectionDriver {
+pub(crate) struct WTransportConnectionDriver {
     conn: wtransport::Connection,
 }
 
 impl WTransportConnectionDriver {
-    fn new(conn: wtransport::Connection) -> Self {
+    fn wrap(conn: wtransport::Connection) -> Self {
         Self { conn }
+    }
+
+    pub async fn connect(
+        url: &str,
+        options: &WTransportClientOptions,
+    ) -> Result<Connection, ConnectionError> {
+        let config = wtransport::ClientConfig::builder()
+            .with_bind_default()
+            .with_native_certs()
+            .max_idle_timeout(options.max_idle_timeout)?
+            .keep_alive_interval(options.keep_alive_interval)
+            .build();
+
+        let endpoint = wtransport::Endpoint::client(config)?;
+        let conn = endpoint.connect(url).await?;
+        Ok(conn.into())
     }
 }
 
@@ -149,6 +257,12 @@ impl From<wtransport::error::ConnectionError> for ConnectionError {
     }
 }
 
+impl From<wtransport::error::ConnectingError> for ConnectionError {
+    fn from(value: wtransport::error::ConnectingError) -> Self {
+        Self(value.to_string())
+    }
+}
+
 impl From<wtransport::error::StreamOpeningError> for ConnectionError {
     fn from(value: wtransport::error::StreamOpeningError) -> Self {
         Self(value.to_string())
@@ -170,5 +284,11 @@ impl From<wtransport::error::StreamWriteError> for WriteError {
 impl From<wtransport::error::SendDatagramError> for SendDatagramError {
     fn from(value: wtransport::error::SendDatagramError) -> Self {
         Self(value.to_string())
+    }
+}
+
+impl From<wtransport::config::InvalidIdleTimeout> for ConnectionError {
+    fn from(_: wtransport::config::InvalidIdleTimeout) -> Self {
+        Self("Invalid max_idle_timeout".to_string())
     }
 }

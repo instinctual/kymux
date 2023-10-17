@@ -17,7 +17,7 @@ pub(crate) mod webtransport_js;
 compile_error!("WebTransportJS is only available for wasm");
 
 #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
-mod wtransport;
+pub(crate) mod wtransport;
 #[cfg(all(feature = "kynet-wtransport", target_family = "wasm"))]
 compile_error!("WTransport is not available for wasm");
 

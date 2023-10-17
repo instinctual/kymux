@@ -4,6 +4,9 @@ use crate::error::*;
 #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
 use crate::driver::webtransport_js::WebTransportJSConnectionDriver;
 
+#[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+use crate::driver::wtransport::WTransportConnectionDriver;
+
 use std::fmt::Debug;
 
 #[cfg(target_family = "wasm")]
@@ -11,12 +14,22 @@ use std::rc::Rc;
 #[cfg(not(target_family = "wasm"))]
 use std::sync::Arc;
 
+#[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+use std::net::SocketAddr;
+
 use bytes::Bytes;
 
 #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
 pub mod webtransport_js {
     pub use crate::driver::webtransport_js::{
         DecodeHexError, WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
+    };
+}
+
+#[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+pub mod wtransport {
+    pub use crate::driver::wtransport::{
+        Certificate, WTransportClientOptions, WTransportServer, WTransportServerOptions,
     };
 }
 
@@ -55,6 +68,32 @@ impl Connection {
         options: &webtransport_js::WebTransportJSOptions,
     ) -> Result<Self, ConnectionError> {
         WebTransportJSConnectionDriver::connect(url, options).await
+    }
+
+    #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+    pub fn wtransport_start_server_on_addr(
+        addr: SocketAddr,
+        cert: wtransport::Certificate,
+        options: &wtransport::WTransportServerOptions,
+    ) -> Result<wtransport::WTransportServer, ConnectionError> {
+        wtransport::WTransportServer::start_on_addr(addr, cert, options)
+    }
+
+    #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+    pub fn wtransport_start_server(
+        port: u16,
+        cert: wtransport::Certificate,
+        options: &wtransport::WTransportServerOptions,
+    ) -> Result<wtransport::WTransportServer, ConnectionError> {
+        wtransport::WTransportServer::start(port, cert, options)
+    }
+
+    #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+    pub async fn wtransport_connect(
+        url: &str,
+        options: &wtransport::WTransportClientOptions,
+    ) -> Result<Self, ConnectionError> {
+        WTransportConnectionDriver::connect(url, options).await
     }
 
     pub async fn open_uni(&self) -> Result<SendStream, ConnectionError> {

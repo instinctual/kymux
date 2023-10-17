@@ -27,3 +27,9 @@ pub struct WriteError(pub String);
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[error("unknown stream")]
 pub struct UnknownStreamError;
+
+impl From<std::io::Error> for ConnectionError {
+    fn from(value: std::io::Error) -> Self {
+        Self(value.to_string())
+    }
+}
