@@ -267,6 +267,10 @@ struct KyChannelDropper {
 }
 
 impl KyChannelSend {
+    pub fn endpoint_id(&self) -> u16 {
+        self.endpoint_id
+    }
+
     async fn open_uni_(conn: &Connection, endpoint_id: u16) -> Result<SendStream, ConnectionError> {
         let mut send = conn.open_uni().await?;
         Router::write_endpoint_id(&mut send, endpoint_id)
@@ -328,6 +332,10 @@ impl KyChannelSend {
 }
 
 impl KyChannelRecv {
+    pub fn endpoint_id(&self) -> u16 {
+        self.endpoint_id
+    }
+
     async fn recv_<T>(rx: &mut mpsc::Receiver<T>) -> Result<T, RouterError> {
         rx.recv()
             .await
@@ -367,6 +375,10 @@ impl KyChannel {
                 clients,
             },
         }
+    }
+
+    pub fn endpoint_id(&self) -> u16 {
+        self.endpoint_id
     }
 
     pub async fn open_uni(&self) -> Result<SendStream, ConnectionError> {
