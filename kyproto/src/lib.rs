@@ -18,7 +18,7 @@ mod control;
 pub mod error;
 mod protocol;
 mod router;
-mod runtime;
+pub mod runtime;
 mod task;
 mod util;
 

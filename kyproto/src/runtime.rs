@@ -1,12 +1,19 @@
 use std::future::Future;
 
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use tokio::time::{Instant, sleep_until};
 #[cfg(target_family = "wasm")]
-pub(crate) use wasmtimer::{std::Instant, tokio::sleep_until};
+pub use std::time::Duration;
+#[cfg(not(target_family = "wasm"))]
+pub use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(not(target_family = "wasm"))]
+pub use tokio::time::{sleep, sleep_until, timeout, timeout_at, Duration, Instant};
+#[cfg(target_family = "wasm")]
+pub use wasmtimer::{
+    std::{Instant, SystemTime, UNIX_EPOCH},
+    tokio::{sleep, sleep_until, timeout, timeout_at},
+};
 
 #[cfg(all(feature = "tokio-rt", not(target_family = "wasm")))]
-pub(crate) fn spawn<F>(future: F)
+pub fn spawn<F>(future: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
@@ -16,7 +23,7 @@ where
 compile_error!("Tokio runtime is not available for wasm");
 
 #[cfg(all(feature = "js", target_family = "wasm"))]
-pub(crate) fn spawn<F>(future: F)
+pub fn spawn<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
