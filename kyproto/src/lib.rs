@@ -1,6 +1,7 @@
 #[cfg(all(not(feature = "js"), not(feature = "tokio-rt")))]
 compile_error!("No feature selected, pass either --features=js or --features=tokio-rt");
 
+use clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 use control::{Control, ReadyNotifier};
 use error::*;
 use router::{KyChannel, Router};
@@ -14,6 +15,7 @@ pub use protocol::{
     MediaPacketHeader, ProtocolRecv, ProtocolSend, VideoProtocol,
 };
 
+mod clock_sync;
 mod control;
 pub mod error;
 mod protocol;
@@ -138,6 +140,48 @@ impl ProtocolEndpoint for InputEndpoint {
     }
 }
 
+pub struct ClockSyncServerEndpoint {
+    id: u16,
+    ready_notifier: ReadyNotifier,
+    ky_channel: KyChannel,
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for ClockSyncServerEndpoint {
+    type Protocol = ClockSyncServerProtocol;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
+        self.ready_notifier.ready().await?;
+        Ok(ClockSyncServerProtocol::new(self.ky_channel))
+    }
+}
+
+pub struct ClockSyncClientEndpoint {
+    id: u16,
+    ready_notifier: ReadyNotifier,
+    ky_channel: KyChannel,
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for ClockSyncClientEndpoint {
+    type Protocol = ClockSyncClientProtocol;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
+        self.ready_notifier.ready().await?;
+        Ok(ClockSyncClientProtocol::new(self.ky_channel))
+    }
+}
+
 pub struct KyProto {
     conn: Connection,
     router: Router,
@@ -254,6 +298,35 @@ impl KyProto {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
         let endpoint = InputEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
+        };
+        Ok(endpoint)
+    }
+
+    pub async fn register_clock_sync_endpoint(
+        &self,
+        id: u16,
+    ) -> Result<ClockSyncServerEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        self.control.register_endpoint(id).await?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = ClockSyncServerEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
+        };
+        Ok(endpoint)
+    }
+
+    pub fn connect_clock_sync_endpoint(
+        &self,
+        id: u16,
+    ) -> Result<ClockSyncClientEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = ClockSyncClientEndpoint {
             id,
             ready_notifier,
             ky_channel,
