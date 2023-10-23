@@ -3,23 +3,147 @@ use crate::{
     Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
 };
 
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
+use std::sync::Arc;
+use std::time::Duration;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 
 impl From<quinn::Connection> for Connection {
     fn from(value: quinn::Connection) -> Self {
-        Self::new(QuinnConnectionDriver::new(value))
+        Self::new(QuinnConnectionDriver::wrap(value))
+    }
+}
+
+pub struct Certificate(rustls::Certificate);
+pub struct PrivateKey(rustls::PrivateKey);
+
+impl Certificate {
+    pub fn new(certificate: Vec<u8>) -> Self {
+        Self(rustls::Certificate(certificate))
+    }
+}
+
+impl PrivateKey {
+    pub fn new(private_key: Vec<u8>) -> Self {
+        Self(rustls::PrivateKey(private_key))
+    }
+}
+
+pub struct QuinnServerOptions {
+    pub max_idle_timeout: Option<Duration>,
+    pub keep_alive_interval: Option<Duration>,
+}
+
+impl Default for QuinnServerOptions {
+    fn default() -> Self {
+        Self {
+            max_idle_timeout: None,
+            keep_alive_interval: None,
+        }
+    }
+}
+
+pub struct QuinnServer {
+    endpoint: quinn::Endpoint,
+}
+
+impl QuinnServer {
+    pub fn start_on_addr(
+        addr: SocketAddr,
+        cert: Certificate,
+        key: PrivateKey,
+        options: &QuinnServerOptions,
+    ) -> Result<Self, ConnectionError> {
+        let cert_chain = vec![cert.0];
+        let mut config = quinn::ServerConfig::with_single_cert(cert_chain, key.0)?;
+
+        let mut transport_config = quinn::TransportConfig::default();
+        transport_config.max_idle_timeout(
+            options
+                .max_idle_timeout
+                .map(quinn::IdleTimeout::try_from)
+                .transpose()
+                .map_err(|_| ConnectionError("Invalid max_idle_timeout".to_string()))?,
+        );
+        transport_config.keep_alive_interval(options.keep_alive_interval);
+        config.transport_config(Arc::new(transport_config));
+
+        let endpoint = quinn::Endpoint::server(config, addr)?;
+        Ok(Self { endpoint })
+    }
+
+    pub fn start(
+        port: u16,
+        cert: Certificate,
+        key: PrivateKey,
+        options: &QuinnServerOptions,
+    ) -> Result<Self, ConnectionError> {
+        let addr = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port);
+        Self::start_on_addr(addr, cert, key, options)
+    }
+
+    pub async fn accept(&self) -> Result<Connection, ConnectionError> {
+        let connecting = self
+            .endpoint
+            .accept()
+            .await
+            .ok_or_else(|| ConnectionError("Endpoint closed".to_string()))?;
+        let connection = connecting.await?;
+        Ok(connection.into())
+    }
+}
+
+pub struct QuinnClientOptions {
+    pub max_idle_timeout: Option<Duration>,
+    pub keep_alive_interval: Option<Duration>,
+}
+
+impl Default for QuinnClientOptions {
+    fn default() -> Self {
+        Self {
+            max_idle_timeout: None,
+            keep_alive_interval: None,
+        }
     }
 }
 
 #[derive(Debug)]
-struct QuinnConnectionDriver {
+pub(crate) struct QuinnConnectionDriver {
     conn: quinn::Connection,
 }
 
 impl QuinnConnectionDriver {
-    fn new(conn: quinn::Connection) -> Self {
+    fn wrap(conn: quinn::Connection) -> Self {
         Self { conn }
+    }
+
+    pub async fn connect(
+        addr: SocketAddr,
+        server_name: &str,
+        cert: Certificate,
+        options: &QuinnClientOptions,
+    ) -> Result<Connection, ConnectionError> {
+        let mut certs = rustls::RootCertStore::empty();
+        certs.add(&cert.0)?;
+        let mut config = quinn::ClientConfig::with_root_certificates(certs);
+
+        let mut transport_config = quinn::TransportConfig::default();
+        transport_config.max_idle_timeout(
+            options
+                .max_idle_timeout
+                .map(quinn::IdleTimeout::try_from)
+                .transpose()
+                .map_err(|_| ConnectionError("Invalid max_idle_timeout".to_string()))?,
+        );
+        transport_config.keep_alive_interval(options.keep_alive_interval);
+        config.transport_config(Arc::new(transport_config));
+
+        let bind_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0);
+        let endpoint = quinn::Endpoint::client(bind_addr)?;
+        let conn = endpoint.connect_with(config, addr, server_name)?.await?;
+        Ok(conn.into())
     }
 }
 
@@ -142,6 +266,18 @@ impl RecvStreamDriver for QuinnRecvStreamDriver {
 
 impl From<quinn::ConnectionError> for ConnectionError {
     fn from(value: quinn::ConnectionError) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl From<quinn::ConnectError> for ConnectionError {
+    fn from(value: quinn::ConnectError) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl From<rustls::Error> for ConnectionError {
+    fn from(value: rustls::Error) -> Self {
         Self(value.to_string())
     }
 }

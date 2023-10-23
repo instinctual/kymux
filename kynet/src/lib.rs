@@ -1,6 +1,9 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
 
+#[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+use crate::driver::quinn::QuinnConnectionDriver;
+
 #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
 use crate::driver::webtransport_js::WebTransportJSConnectionDriver;
 
@@ -14,10 +17,20 @@ use std::rc::Rc;
 #[cfg(not(target_family = "wasm"))]
 use std::sync::Arc;
 
-#[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+#[cfg(all(
+    any(feature = "kynet-quinn", feature = "kynet-wtransport"),
+    not(target_family = "wasm")
+))]
 use std::net::SocketAddr;
 
 use bytes::Bytes;
+
+#[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+pub mod quinn {
+    pub use crate::driver::quinn::{
+        Certificate, PrivateKey, QuinnClientOptions, QuinnServer, QuinnServerOptions,
+    };
+}
 
 #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
 pub mod webtransport_js {
@@ -60,6 +73,36 @@ impl Connection {
         Self {
             driver: Rc::new(driver),
         }
+    }
+
+    #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+    pub async fn quinn_connect(
+        addr: SocketAddr,
+        server_name: &str,
+        cert: quinn::Certificate,
+        options: &quinn::QuinnClientOptions,
+    ) -> Result<Self, ConnectionError> {
+        QuinnConnectionDriver::connect(addr, server_name, cert, options).await
+    }
+
+    #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+    pub fn quinn_start_server_on_addr(
+        addr: SocketAddr,
+        cert: quinn::Certificate,
+        key: quinn::PrivateKey,
+        options: &quinn::QuinnServerOptions,
+    ) -> Result<quinn::QuinnServer, ConnectionError> {
+        quinn::QuinnServer::start_on_addr(addr, cert, key, options)
+    }
+
+    #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+    pub fn quinn_start_server(
+        port: u16,
+        cert: quinn::Certificate,
+        key: quinn::PrivateKey,
+        options: &quinn::QuinnServerOptions,
+    ) -> Result<quinn::QuinnServer, ConnectionError> {
+        quinn::QuinnServer::start(port, cert, key, options)
     }
 
     #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]

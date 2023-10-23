@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
-mod quinn;
+pub(crate) mod quinn;
 #[cfg(all(feature = "kynet-quinn", target_family = "wasm"))]
 compile_error!("Quinn is not available for wasm");
 
