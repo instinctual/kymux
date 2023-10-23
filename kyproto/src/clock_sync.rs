@@ -30,6 +30,21 @@ impl ClockSyncResult {
     }
 }
 
+pub struct ClockSyncAverage {
+    offset_micros: i64,
+    delay_micros: i64,
+}
+
+impl ClockSyncAverage {
+    pub fn offset_micros(&self) -> i64 {
+        self.offset_micros
+    }
+
+    pub fn delay_micros(&self) -> i64 {
+        self.delay_micros
+    }
+}
+
 pub struct ClockSyncClientProtocol {
     ky_channel: KyChannel,
     next_id: u32,
@@ -88,6 +103,28 @@ impl ClockSyncClientProtocol {
                 return Ok(None);
             }
         }
+    }
+
+    pub async fn sync_average(&mut self, times: u32) -> Result<ClockSyncAverage, ProtocolError> {
+        assert!(times > 0);
+        let mut offset_sum = 0i64;
+        let mut delay_sum = 0i64;
+        let mut count = 0;
+        while count < times {
+            if let Some(res) = self.sync().await? {
+                offset_sum += res.offset_micros();
+                delay_sum += res.delay_micros();
+                count += 1;
+            }
+        }
+
+        let offset_micros = offset_sum / count as i64;
+        let delay_micros = delay_sum / count as i64;
+        let avg = ClockSyncAverage {
+            offset_micros,
+            delay_micros,
+        };
+        Ok(avg)
     }
 }
 
