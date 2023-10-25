@@ -1,10 +1,10 @@
+use crate::cert::{Certificate, PrivateKey, RootCertStore};
 use crate::error::*;
 use crate::{
     Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
 };
 
 use std::net::{Ipv6Addr, SocketAddr};
-use std::path::Path;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -15,29 +15,6 @@ use log::{debug, error, info, warn};
 impl From<wtransport::Connection> for Connection {
     fn from(value: wtransport::Connection) -> Self {
         Self::new(WTransportConnectionDriver::wrap(value))
-    }
-}
-
-pub struct Certificate(wtransport::tls::Certificate);
-
-impl Certificate {
-    pub fn new(certificate: Vec<u8>, private_key: Vec<u8>) -> Self {
-        Self(wtransport::tls::Certificate::new(
-            vec![certificate],
-            private_key,
-        ))
-    }
-
-    pub async fn load(
-        cert_path: impl AsRef<Path>,
-        key_path: impl AsRef<Path>,
-    ) -> std::io::Result<Self> {
-        let certificate = wtransport::tls::Certificate::load(cert_path, key_path)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{e:?}")))?;
-        Ok(Self(certificate))
-        // TODO use async loading
-        // <https://github.com/BiagioFesta/wtransport/issues/81>
-        // <https://github.com/BiagioFesta/wtransport/pull/82>
     }
 }
 
@@ -63,11 +40,19 @@ impl WTransportServer {
     pub fn start_on_addr(
         addr: SocketAddr,
         cert: Certificate,
+        key: PrivateKey,
         options: &WTransportServerOptions,
     ) -> Result<Self, ConnectionError> {
+        let cert_chain = vec![cert.0];
+        let mut tls_config = rustls::ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert_chain, key.0)?;
+        tls_config.alpn_protocols = vec![wtransport_proto::WEBTRANSPORT_ALPN.to_vec()];
+
         let config = wtransport::ServerConfig::builder()
             .with_bind_address(addr)
-            .with_certificate(cert.0)
+            .with_custom_tls(tls_config)
             .max_idle_timeout(options.max_idle_timeout)?
             .keep_alive_interval(options.keep_alive_interval)
             .build();
@@ -79,10 +64,11 @@ impl WTransportServer {
     pub fn start(
         port: u16,
         cert: Certificate,
+        key: PrivateKey,
         options: &WTransportServerOptions,
     ) -> Result<Self, ConnectionError> {
         let addr = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port);
-        Self::start_on_addr(addr, cert, options)
+        Self::start_on_addr(addr, cert, key, options)
     }
 
     pub async fn accept(&self) -> Result<Connection, ConnectionError> {
@@ -118,11 +104,18 @@ impl WTransportConnectionDriver {
 
     pub async fn connect(
         url: &str,
+        certs: RootCertStore,
         options: &WTransportClientOptions,
     ) -> Result<Connection, ConnectionError> {
+        let mut tls_config = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(certs.0)
+            .with_no_client_auth();
+        tls_config.alpn_protocols = vec![wtransport_proto::WEBTRANSPORT_ALPN.to_vec()];
+
         let config = wtransport::ClientConfig::builder()
             .with_bind_default()
-            .with_native_certs()
+            .with_custom_tls(tls_config)
             .max_idle_timeout(options.max_idle_timeout)?
             .keep_alive_interval(options.keep_alive_interval)
             .build();

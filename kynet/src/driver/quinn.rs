@@ -1,3 +1,4 @@
+use crate::cert::{Certificate, PrivateKey, RootCertStore};
 use crate::error::*;
 use crate::{
     Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
@@ -13,21 +14,6 @@ use bytes::Bytes;
 impl From<quinn::Connection> for Connection {
     fn from(value: quinn::Connection) -> Self {
         Self::new(QuinnConnectionDriver::wrap(value))
-    }
-}
-
-pub struct Certificate(rustls::Certificate);
-pub struct PrivateKey(rustls::PrivateKey);
-
-impl Certificate {
-    pub fn new(certificate: Vec<u8>) -> Self {
-        Self(rustls::Certificate(certificate))
-    }
-}
-
-impl PrivateKey {
-    pub fn new(private_key: Vec<u8>) -> Self {
-        Self(rustls::PrivateKey(private_key))
     }
 }
 
@@ -122,12 +108,10 @@ impl QuinnConnectionDriver {
     pub async fn connect(
         addr: SocketAddr,
         server_name: &str,
-        cert: Certificate,
+        certs: RootCertStore,
         options: &QuinnClientOptions,
     ) -> Result<Connection, ConnectionError> {
-        let mut certs = rustls::RootCertStore::empty();
-        certs.add(&cert.0)?;
-        let mut config = quinn::ClientConfig::with_root_certificates(certs);
+        let mut config = quinn::ClientConfig::with_root_certificates(certs.0);
 
         let mut transport_config = quinn::TransportConfig::default();
         transport_config.max_idle_timeout(
@@ -272,12 +256,6 @@ impl From<quinn::ConnectionError> for ConnectionError {
 
 impl From<quinn::ConnectError> for ConnectionError {
     fn from(value: quinn::ConnectError) -> Self {
-        Self(value.to_string())
-    }
-}
-
-impl From<rustls::Error> for ConnectionError {
-    fn from(value: rustls::Error) -> Self {
         Self(value.to_string())
     }
 }
