@@ -53,9 +53,6 @@ pub mod cert;
 mod driver;
 pub mod error;
 
-// This abtraction does not handle the QUIC or WebTransport connection
-// creation, but only streams and datagram once the connection is created
-
 #[derive(Debug, Clone)]
 pub struct Connection {
     #[cfg(not(target_family = "wasm"))]
