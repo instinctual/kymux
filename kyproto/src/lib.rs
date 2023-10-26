@@ -16,6 +16,7 @@ pub use protocol::{
 };
 
 mod clock_sync;
+mod connection;
 mod control;
 pub mod error;
 mod protocol;
@@ -23,6 +24,21 @@ mod router;
 pub mod runtime;
 mod task;
 mod util;
+
+#[cfg(all(
+    any(feature = "kynet-quinn", feature = "kynet-wtransport"),
+    not(target_family = "wasm")
+))]
+pub use {kynet::cert, std::net::SocketAddr};
+
+#[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+pub use connection::quinn;
+
+#[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
+pub use connection::webtransport_js;
+
+#[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+pub use connection::wtransport;
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -221,6 +237,76 @@ impl KyProto {
             router,
             control,
         })
+    }
+
+    #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+    pub async fn quinn_connect(
+        addr: SocketAddr,
+        server_name: &str,
+        certs: cert::RootCertStore,
+        options: &quinn::QuinnClientOptions,
+    ) -> Result<Self, ConnectionError> {
+        let conn = kynet::Connection::quinn_connect(addr, server_name, certs, options).await?;
+        Self::connect(conn).await
+    }
+
+    #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+    pub fn quinn_start_server_on_addr(
+        addr: SocketAddr,
+        cert: cert::Certificate,
+        key: cert::PrivateKey,
+        options: &quinn::QuinnServerOptions,
+    ) -> Result<quinn::QuinnServer, ConnectionError> {
+        quinn::QuinnServer::start_on_addr(addr, cert, key, options)
+    }
+
+    #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
+    pub fn quinn_start_server(
+        port: u16,
+        cert: cert::Certificate,
+        key: cert::PrivateKey,
+        options: &quinn::QuinnServerOptions,
+    ) -> Result<quinn::QuinnServer, ConnectionError> {
+        quinn::QuinnServer::start(port, cert, key, options)
+    }
+
+    #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
+    pub async fn webtransport_js_connect(
+        url: &str,
+        options: &webtransport_js::WebTransportJSOptions,
+    ) -> Result<Self, ConnectionError> {
+        let conn = kynet::Connection::webtransport_js_connect(url, options).await?;
+        Self::connect(conn).await
+    }
+
+    #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+    pub async fn wtransport_connect(
+        url: &str,
+        certs: cert::RootCertStore,
+        options: &wtransport::WTransportClientOptions,
+    ) -> Result<Self, ConnectionError> {
+        let conn = kynet::Connection::wtransport_connect(url, certs, options).await?;
+        Self::connect(conn).await
+    }
+
+    #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+    pub fn wtransport_start_server_on_addr(
+        addr: SocketAddr,
+        cert: cert::Certificate,
+        key: cert::PrivateKey,
+        options: &wtransport::WTransportServerOptions,
+    ) -> Result<wtransport::WTransportServer, ConnectionError> {
+        wtransport::WTransportServer::start_on_addr(addr, cert, key, options)
+    }
+
+    #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
+    pub fn wtransport_start_server(
+        port: u16,
+        cert: cert::Certificate,
+        key: cert::PrivateKey,
+        options: &wtransport::WTransportServerOptions,
+    ) -> Result<wtransport::WTransportServer, ConnectionError> {
+        wtransport::WTransportServer::start(port, cert, key, options)
     }
 
     pub async fn register_video_endpoint(

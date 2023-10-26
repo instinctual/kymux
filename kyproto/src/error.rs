@@ -4,6 +4,8 @@ use crate::router::EndpointAlreadyRegistered;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 
+pub use kynet::error::ConnectionError;
+
 #[derive(Debug, Error, Clone)]
 #[error("Protoocol error: {0}")]
 pub struct ProtocolError(pub String);
