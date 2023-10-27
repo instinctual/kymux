@@ -8,11 +8,10 @@ edition = "2021"
 [dependencies]
 bytes = "1.4.0"
 log = "0.4.20"
-kynet = { version = "0.1", path = "../kynet", optional = true }
 kyproto = { version = "0.1", path = "../kyproto", features = ["tokio-rt"], optional = true }
 tokio = { version = "1.32.0", features = ["rt-multi-thread", "io-util", "sync"] }
 
 [features]
 default = []
-kynet-quinn = ["kynet/kynet-quinn", "kyproto/kynet-quinn"]
-kynet-wtransport = ["kynet/kynet-wtransport", "kyproto/kynet-wtransport"]
+kynet-quinn = ["kyproto/kynet-quinn"]
+kynet-wtransport = ["kyproto/kynet-wtransport"]
