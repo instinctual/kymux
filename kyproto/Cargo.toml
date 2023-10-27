@@ -22,7 +22,7 @@ thiserror = "1.0.47"
 tokio = { version = "1.32.0", features = ["rt", "macros", "sync", "time"], optional = true }
 wasm-bindgen = { version = "0.2.87", optional = true }
 wasm-bindgen-futures = { version = "0.4.37", optional = true }
-wasmtimer = "0.2.0"
+wasmtimer = { version = "0.2.0", optional = true }
 
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]
@@ -32,6 +32,7 @@ js = [
     "tokio/sync",
     "dep:wasm-bindgen",
     "dep:wasm-bindgen-futures",
+    "dep:wasmtimer",
 ]
 kynet-quinn = ["kynet/kynet-quinn"]
 kynet-webtransport-js = ["kynet/kynet-webtransport-js"]
