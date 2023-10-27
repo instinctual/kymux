@@ -25,7 +25,7 @@ wasmtimer = "0.2.0"
 
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]
-default = []
+default = ["dep:kynet"]
 js = [
     "kynet-webtransport-js",
     "tokio/sync",
