@@ -40,6 +40,7 @@ impl<T> ProtocolRecv<T> {
 pub enum VideoProtocol {
     Reliable,
     GopStream,
+    Unreliable,
     UnreliableFec,
 }
 
@@ -56,6 +57,11 @@ pub(crate) async fn start_video_protocol_send(
         VideoProtocol::GopStream => ProtocolSend {
             driver: Box::new(
                 driver::av::gopstream::GopStreamProtocolSendDriver::start(ky_channel).await?,
+            ),
+        },
+        VideoProtocol::Unreliable => ProtocolSend {
+            driver: Box::new(
+                driver::av::unreliable::UnreliableProtocolSendDriver::start(ky_channel).await?,
             ),
         },
         VideoProtocol::UnreliableFec => ProtocolSend {
@@ -82,6 +88,11 @@ pub(crate) async fn start_video_protocol_recv(
         VideoProtocol::GopStream => ProtocolRecv {
             driver: Box::new(
                 driver::av::gopstream::GopStreamProtocolRecvDriver::start(ky_channel).await?,
+            ),
+        },
+        VideoProtocol::Unreliable => ProtocolRecv {
+            driver: Box::new(
+                driver::av::unreliable::UnreliableProtocolRecvDriver::start(ky_channel).await?,
             ),
         },
         VideoProtocol::UnreliableFec => ProtocolRecv {

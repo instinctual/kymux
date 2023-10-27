@@ -7,6 +7,7 @@ use kynet::RecvStream;
 
 pub(crate) mod gopstream;
 pub(crate) mod reliable;
+pub(crate) mod unreliable;
 pub(crate) mod unreliable_fec;
 
 pub(crate) async fn read_packet(recv: &mut RecvStream) -> Result<Option<AVPacket>, ProtocolError> {
