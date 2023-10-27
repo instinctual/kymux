@@ -38,6 +38,12 @@ impl Certificate {
     }
 }
 
+impl From<rustls::Certificate> for Certificate {
+    fn from(certificate: rustls::Certificate) -> Self {
+        Self(certificate)
+    }
+}
+
 impl PrivateKey {
     pub fn new(private_key: Vec<u8>) -> Self {
         Self(rustls::PrivateKey(private_key))
@@ -59,6 +65,12 @@ impl PrivateKey {
         };
 
         Ok(Self(rustls::PrivateKey(private_key)))
+    }
+}
+
+impl From<rustls::PrivateKey> for PrivateKey {
+    fn from(private_key: rustls::PrivateKey) -> Self {
+        Self(private_key)
     }
 }
 
@@ -84,6 +96,12 @@ impl RootCertStore {
     pub fn add(&mut self, der: &Certificate) -> Result<(), CertError> {
         self.0.add(&der.0)?;
         Ok(())
+    }
+}
+
+impl From<rustls::RootCertStore> for RootCertStore {
+    fn from(store: rustls::RootCertStore) -> Self {
+        Self(store)
     }
 }
 
