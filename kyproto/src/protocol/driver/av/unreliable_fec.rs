@@ -21,12 +21,11 @@ use tokio::sync::mpsc;
 * (SPS/PPS) over a kynet stream (QUIC or WebTransport stream), and media data
 * over kynet datagrams (QUIC or WebTransport datagrams).
 *
-* The _sender_ receives kypackets from a client over TCP. It sends to the
-* kymux receiver the initial codec packet and all config packets (SPS/PPS)
-* over a single kynet stream, in sequence. It generates RaptorQ packets from
-* media packets to add forward error correction, and sends them over datagrams
-* having size max_datagram_size() (exposed by kynet) including some additional
-* headers.
+* The _sender_ receives packets from a client. It sends to the other kyproto
+* peer the initial codec packet and all config packets (SPS/PPS) over a single
+* kynet stream, in sequence. It generates RaptorQ packets from media packets to
+* add forward error correction, and sends them over datagrams having size
+* max_datagram_size() (exposed by kynet) including some additional headers.
 *
 * The _receiver_ listens for 3 events:
 *  - accept a kynet uni-stream
@@ -60,7 +59,8 @@ use tokio::sync::mpsc;
 *
 *  - kypacket_seq: 32 bits
 *  - group_seq: 32 bits
-*  - kypacket: full kypacket as is
+*  - kypacket headers: 12 bytes
+*  - kypacket payload: (payload length)
 *
 * The sequence numbers are set to 0 for codec packets, since they are
 * meaningless here.
