@@ -1,6 +1,8 @@
 #[cfg(all(not(feature = "js"), not(feature = "tokio-rt")))]
 compile_error!("No feature selected, pass either --features=js or --features=tokio-rt");
 
+use std::sync::atomic::{AtomicU16, Ordering};
+
 use clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 use control::{Control, ReadyNotifier};
 use error::*;
@@ -198,10 +200,22 @@ impl ProtocolEndpoint for ClockSyncClientEndpoint {
     }
 }
 
+const INITIATOR_SERVER: u16 = 0;
+const INITIATOR_CLIENT: u16 = 1;
+
 pub struct KyProto {
     conn: Connection,
     router: Router,
     control: Control,
+
+    // Endpoint ID generation: ids can be allocated by both sides.
+    // Like Quic streams, use u16 parity to avoid collision.
+    //
+    // The parity bit is defined by INITIATOR_SERVER/INITIATOR_CLIENT.
+    //
+    // quinn example: https://github.com/quinn-rs/quinn/blob/e652b6d999f053ffe21eeea247854882ae480281/quinn-proto/src/lib.rs#L230
+    next_endpoint_index: AtomicU16,
+    initiator: u16,
 }
 
 impl KyProto {
@@ -219,6 +233,8 @@ impl KyProto {
             conn,
             router,
             control,
+            initiator: INITIATOR_CLIENT,
+            next_endpoint_index: AtomicU16::new(0),
         })
     }
 
@@ -236,6 +252,8 @@ impl KyProto {
             conn,
             router,
             control,
+            initiator: INITIATOR_SERVER,
+            next_endpoint_index: AtomicU16::new(0),
         })
     }
 
@@ -309,11 +327,21 @@ impl KyProto {
         wtransport::WTransportServer::start(port, cert, key, options)
     }
 
+    fn get_endpoint_id(&self, id: Option<u16>) -> u16 {
+        if let Some(id) = id {
+            id
+        } else {
+            let index = self.next_endpoint_index.fetch_add(1, Ordering::Relaxed);
+            (index << 1) | self.initiator
+        }
+    }
+
     pub async fn register_video_endpoint(
         &self,
-        id: u16,
+        id: Option<u16>,
         video_protocol: VideoProtocol,
     ) -> Result<VideoServerEndpoint, ProtocolError> {
+        let id = self.get_endpoint_id(id);
         let ready_notifier = self.control.register_ready_notifier(id)?;
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
@@ -344,8 +372,9 @@ impl KyProto {
 
     pub async fn register_audio_endpoint(
         &self,
-        id: u16,
+        id: Option<u16>,
     ) -> Result<AudioServerEndpoint, ProtocolError> {
+        let id = self.get_endpoint_id(id);
         let ready_notifier = self.control.register_ready_notifier(id)?;
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
@@ -368,7 +397,11 @@ impl KyProto {
         Ok(endpoint)
     }
 
-    pub async fn register_input_endpoint(&self, id: u16) -> Result<InputEndpoint, ProtocolError> {
+    pub async fn register_input_endpoint(
+        &self,
+        id: Option<u16>,
+    ) -> Result<InputEndpoint, ProtocolError> {
+        let id = self.get_endpoint_id(id);
         let ready_notifier = self.control.register_ready_notifier(id)?;
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
