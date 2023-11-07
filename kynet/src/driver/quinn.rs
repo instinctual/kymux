@@ -4,7 +4,7 @@ use crate::{
     Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
 };
 
-use std::net::{IpAddr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -66,7 +66,7 @@ impl QuinnServer {
         key: PrivateKey,
         options: &QuinnServerOptions,
     ) -> Result<Self, ConnectionError> {
-        let addr = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port);
+        let addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port);
         Self::start_on_addr(addr, cert, key, options)
     }
 
@@ -124,7 +124,7 @@ impl QuinnConnectionDriver {
         transport_config.keep_alive_interval(options.keep_alive_interval);
         config.transport_config(Arc::new(transport_config));
 
-        let bind_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0);
+        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
         let endpoint = quinn::Endpoint::client(bind_addr)?;
         let conn = endpoint.connect_with(config, addr, server_name)?.await?;
         Ok(conn.into())
