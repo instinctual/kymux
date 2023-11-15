@@ -1,0 +1,234 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  DEBIAN_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-bookworm:20231027132733
+  WASM_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-wasm:20231027133403
+  WIN64_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-win64:20231027133906
+  MACOS_RUST_VERSION: 1.73.0
+
+stages:
+  - lint
+  - build
+  - test
+  - misc
+
+.variables-windows-x86_64: &variables-windows-x86_64
+  CARGO_BUILD_TARGET: x86_64-pc-windows-gnu
+
+.variables-macos-x86_64: &variables-macos-x86_64
+  CARGO_BUILD_TARGET: x86_64-apple-darwin
+
+.variables-macos-arm64: &variables-macos-arm64
+  CARGO_BUILD_TARGET: aarch64-apple-darwin
+
+lint:
+  stage: lint
+  image: $DEBIAN_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  script:
+    - cargo fmt -- --check
+  cache: []
+
+build-debian-bookworm-x86_64:
+  stage: build
+  image: $DEBIAN_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  script: |
+    cargo build \
+      -p kyproto \
+      --features kynet-quinn,kynet-wtransport,tokio-rt
+
+    cargo build \
+      -p kycom
+
+test-debian-bookworm-x86_64:
+  stage: test
+  image: $DEBIAN_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  needs:
+    - build-debian-bookworm-x86_64
+  script: |
+    cargo test
+
+clippy-debian-bookworm-x86_64:
+  stage: misc
+  image: $DEBIAN_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  needs:
+    - build-debian-bookworm-x86_64
+  script: |
+    cargo clippy \
+      --features kynet-quinn,kynet-wtransport,tokio-rt \
+      -- -D warnings
+
+build-windows-x86_64:
+  stage: build
+  image: $WIN64_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  script: |
+    cargo build \
+      --target x86_64-pc-windows-gnu \
+      -p kyproto \
+      --features kynet-quinn,kynet-wtransport,tokio-rt
+
+    cargo build \
+      --target x86_64-pc-windows-gnu \
+      -p kycom
+
+test-windows-x86_64:
+  stage: test
+  image: $WIN64_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  needs:
+    - build-windows-x86_64
+  script: |
+    cargo test --target x86_64-pc-windows-gnu --no-run
+
+clippy-windows-x86_64:
+  stage: misc
+  image: $WIN64_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  needs:
+    - build-windows-x86_64
+  script: |
+    cargo clippy \
+      --target x86_64-pc-windows-gnu \
+      --features kynet-quinn,kynet-wtransport,tokio-rt \
+      -- -D warnings
+
+.macos-common:
+  before_script: |
+    rustup override set $MACOS_RUST_VERSION
+
+.build-macos-common:
+  extends: .macos-common
+  stage: build
+  tags:
+    - macos
+  only:
+    - main
+    - merge_requests
+    - tags
+  script: |
+    cargo build \
+      -p kyproto \
+      --features kynet-quinn,kynet-wtransport,tokio-rt
+
+    cargo build \
+      -p kycom
+
+.clippy-macos-common:
+  extends: .macos-common
+  stage: misc
+  tags:
+    - macos
+  only:
+    - main
+    - merge_requests
+    - tags
+  script: |
+    cargo clippy \
+      --features kynet-quinn,kynet-wtransport,tokio-rt \
+      -- -D warnings
+
+build-macos-x86_64:
+  extends: .build-macos-common
+  variables: *variables-macos-x86_64
+
+clippy-macos-x86_64:
+  extends: .clippy-macos-common
+  variables: *variables-macos-x86_64
+  needs:
+    - build-macos-x86_64
+
+build-macos-arm64:
+  extends: .build-macos-common
+  variables: *variables-macos-arm64
+
+test-macos-arm64:
+  extends: .macos-common
+  variables: *variables-macos-arm64
+  stage: test
+  tags:
+    - macos
+  only:
+    - main
+    - merge_requests
+    - tags
+  needs:
+    - build-macos-arm64
+  script: |
+    cargo test
+
+clippy-macos-arm64:
+  extends: .clippy-macos-common
+  variables: *variables-macos-arm64
+  needs:
+    - build-macos-arm64
+
+build-wasm:
+  stage: build
+  image: $WASM_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  script: |
+    RUSTFLAGS=--cfg=web_sys_unstable_apis cargo build \
+      --target wasm32-unknown-unknown \
+      -p kyproto \
+      --features js,kynet-webtransport-js
+
+clippy-wasm:
+  stage: misc
+  image: $WASM_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  needs:
+    - build-wasm
+  script: |
+    RUSTFLAGS=--cfg=web_sys_unstable_apis cargo clippy \
+      --target wasm32-unknown-unknown \
+      -p kyproto \
+      --features js,kynet-webtransport-js \
+      -- -D warnings
