@@ -1,0 +1,3 @@
+[submodule "external/ls-qpack-rs"]
+	path = external/ls-qpack-rs
+	url = ../../external/ls-qpack-rs.git
