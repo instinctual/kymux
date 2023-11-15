@@ -157,7 +157,7 @@ impl<T: ProtocolEndpoint> Forwarder<T> {
         })?;
 
         let protocol = self.endpoint.ready().await.map_err(to_io_error)?;
-        tcp_stream.write(&[0]).await?;
+        tcp_stream.write_all(&[0]).await?;
 
         Ok((tcp_stream, protocol))
     }
