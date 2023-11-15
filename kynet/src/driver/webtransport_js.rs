@@ -174,18 +174,21 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
     }
 
     async fn accept_uni(&self) -> Result<RecvStream, ConnectionError> {
-        let mut reader = self.uni_streams_reader.borrow_mut();
-        if reader.is_none() {
-            let uni_streams_reader = self
-                .web_transport
-                .incoming_unidirectional_streams()
-                .get_reader()
-                .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                .map_err(|err| ConnectionError(format!("Unexpected reader type {err:?}")))?;
-            *reader = Some(uni_streams_reader);
-        }
+        let promise = {
+            let mut reader = self.uni_streams_reader.borrow_mut();
+            if reader.is_none() {
+                let uni_streams_reader = self
+                    .web_transport
+                    .incoming_unidirectional_streams()
+                    .get_reader()
+                    .dyn_into::<web_sys::ReadableStreamDefaultReader>()
+                    .map_err(|err| ConnectionError(format!("Unexpected reader type {err:?}")))?;
+                *reader = Some(uni_streams_reader);
+            }
 
-        let promise = reader.as_ref().expect("Not initialized").read();
+            reader.as_ref().expect("Not initialized").read()
+        };
+
         let obj = JsFuture::from(promise).await?;
         let done = js_sys::Reflect::get(&obj, &JsValue::from("done"))?
             .as_bool()
@@ -202,18 +205,21 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
     }
 
     async fn accept_bi(&self) -> Result<(SendStream, RecvStream), ConnectionError> {
-        let mut reader = self.bi_streams_reader.borrow_mut();
-        if reader.is_none() {
-            let bi_streams_reader = self
-                .web_transport
-                .incoming_bidirectional_streams()
-                .get_reader()
-                .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                .map_err(|err| ConnectionError(format!("Unexpected reader type {err:?}")))?;
-            *reader = Some(bi_streams_reader);
-        }
+        let promise = {
+            let mut reader = self.bi_streams_reader.borrow_mut();
+            if reader.is_none() {
+                let bi_streams_reader = self
+                    .web_transport
+                    .incoming_bidirectional_streams()
+                    .get_reader()
+                    .dyn_into::<web_sys::ReadableStreamDefaultReader>()
+                    .map_err(|err| ConnectionError(format!("Unexpected reader type {err:?}")))?;
+                *reader = Some(bi_streams_reader);
+            }
 
-        let promise = reader.as_ref().expect("Not initialized").read();
+            reader.as_ref().expect("Not initialized").read()
+        };
+
         let obj = JsFuture::from(promise).await?;
         let done = js_sys::Reflect::get(&obj, &JsValue::from("done"))?
             .as_bool()
@@ -232,19 +238,22 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
     }
 
     async fn read_datagram(&self) -> Result<Bytes, ConnectionError> {
-        let mut reader = self.datagrams_reader.borrow_mut();
-        if reader.is_none() {
-            let datagrams_reader = self
-                .web_transport
-                .datagrams()
-                .readable()
-                .get_reader()
-                .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                .expect("Invalid readable stream");
-            *reader = Some(datagrams_reader);
-        }
+        let promise = {
+            let mut reader = self.datagrams_reader.borrow_mut();
+            if reader.is_none() {
+                let datagrams_reader = self
+                    .web_transport
+                    .datagrams()
+                    .readable()
+                    .get_reader()
+                    .dyn_into::<web_sys::ReadableStreamDefaultReader>()
+                    .expect("Invalid readable stream");
+                *reader = Some(datagrams_reader);
+            }
 
-        let promise = reader.as_ref().expect("Not initialized").read();
+            reader.as_ref().expect("Not initialized").read()
+        };
+
         let obj = JsFuture::from(promise).await?;
         let done = js_sys::Reflect::get(&obj, &JsValue::from("done"))?
             .as_bool()
@@ -260,19 +269,22 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
     }
 
     async fn send_datagram(&self, data: Bytes) -> Result<(), SendDatagramError> {
-        let mut writer = self.datagrams_writer.borrow_mut();
-        if writer.is_none() {
-            let datagrams_writer = self.web_transport.datagrams().writable().get_writer()?;
-            *writer = Some(datagrams_writer);
-        }
+        let promise = {
+            let mut writer = self.datagrams_writer.borrow_mut();
+            if writer.is_none() {
+                let datagrams_writer = self.web_transport.datagrams().writable().get_writer()?;
+                *writer = Some(datagrams_writer);
+            }
 
-        let typed_array = js_sys::Uint8Array::from(&data[..]);
-        let data_js_value = JsValue::from(typed_array);
+            let typed_array = js_sys::Uint8Array::from(&data[..]);
+            let data_js_value = JsValue::from(typed_array);
 
-        let promise = writer
-            .as_ref()
-            .expect("Not initialized")
-            .write_with_chunk(&data_js_value);
+            writer
+                .as_ref()
+                .expect("Not initialized")
+                .write_with_chunk(&data_js_value)
+        };
+
         JsFuture::from(promise).await?;
 
         Ok(())
