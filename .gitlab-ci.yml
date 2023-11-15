@@ -1,9 +1,11 @@
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   DEBIAN_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-bookworm:20231027132733
+  WASM_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-wasm:20231027133403
   WIN64_IMAGE: registry.gitlab.com/kyber-labs/kyber-streamer/docker-images/debian-win64:20231027133906
   MACOS_RUST_VERSION: 1.73.0
   DESKTOP_FEATURES: backend-quinn,backend-wtransport,tokio-rt,ipc
+  WEB_FEATURES: backend-webtransport-js,js
 
 stages:
   - lint
@@ -197,3 +199,36 @@ clippy-macos-arm64:
   variables: *variables-macos-arm64
   needs:
     - build-macos-arm64
+
+build-wasm:
+  stage: build
+  image: $WASM_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  script: |
+    RUSTFLAGS=--cfg=web_sys_unstable_apis cargo build \
+      --target wasm32-unknown-unknown \
+      -p kymux \
+      --features $WEB_FEATURES
+
+clippy-wasm:
+  stage: misc
+  image: $WASM_IMAGE
+  tags:
+    - docker
+  only:
+    - main
+    - merge_requests
+    - tags
+  needs:
+    - build-wasm
+  script: |
+    RUSTFLAGS=--cfg=web_sys_unstable_apis cargo clippy \
+      --target wasm32-unknown-unknown \
+      -p kymux \
+      --features $WEB_FEATURES \
+      -- -D warnings
