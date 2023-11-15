@@ -181,7 +181,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
                 .incoming_unidirectional_streams()
                 .get_reader()
                 .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                .or_else(|err| Err(ConnectionError(format!("Unexpected reader type {err:?}"))))?;
+                .map_err(|err| ConnectionError(format!("Unexpected reader type {err:?}")))?;
             *reader = Some(uni_streams_reader);
         }
 
@@ -209,7 +209,7 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
                 .incoming_bidirectional_streams()
                 .get_reader()
                 .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                .or_else(|err| Err(ConnectionError(format!("Unexpected reader type {err:?}"))))?;
+                .map_err(|err| ConnectionError(format!("Unexpected reader type {err:?}")))?;
             *reader = Some(bi_streams_reader);
         }
 
