@@ -18,6 +18,7 @@ impl From<web_sys::WebTransport> for Connection {
     }
 }
 
+#[derive(Default)]
 pub struct WebTransportJSOptions {
     pub congestion_control: WebTransportJSCongestionControl,
     pub require_unreliable: bool,
@@ -41,17 +42,9 @@ impl WebTransportJSOptions {
     }
 }
 
-impl Default for WebTransportJSOptions {
-    fn default() -> Self {
-        Self {
-            congestion_control: WebTransportJSCongestionControl::Default,
-            require_unreliable: false,
-            server_certificate_hashes: Vec::new(),
-        }
-    }
-}
-
+#[derive(Default)]
 pub enum WebTransportJSCongestionControl {
+    #[default]
     Default,
     Throughput,
     LowLatency,

@@ -18,18 +18,10 @@ impl From<wtransport::Connection> for Connection {
     }
 }
 
+#[derive(Default)]
 pub struct WTransportServerOptions {
     pub max_idle_timeout: Option<Duration>,
     pub keep_alive_interval: Option<Duration>,
-}
-
-impl Default for WTransportServerOptions {
-    fn default() -> Self {
-        Self {
-            max_idle_timeout: None,
-            keep_alive_interval: None,
-        }
-    }
 }
 
 pub struct WTransportServer {
@@ -78,18 +70,10 @@ impl WTransportServer {
     }
 }
 
+#[derive(Default)]
 pub struct WTransportClientOptions {
     max_idle_timeout: Option<Duration>,
     keep_alive_interval: Option<Duration>,
-}
-
-impl Default for WTransportClientOptions {
-    fn default() -> Self {
-        Self {
-            max_idle_timeout: None,
-            keep_alive_interval: None,
-        }
-    }
 }
 
 #[derive(Debug)]

@@ -17,18 +17,10 @@ impl From<quinn::Connection> for Connection {
     }
 }
 
+#[derive(Default)]
 pub struct QuinnServerOptions {
     pub max_idle_timeout: Option<Duration>,
     pub keep_alive_interval: Option<Duration>,
-}
-
-impl Default for QuinnServerOptions {
-    fn default() -> Self {
-        Self {
-            max_idle_timeout: None,
-            keep_alive_interval: None,
-        }
-    }
 }
 
 pub struct QuinnServer {
@@ -81,18 +73,10 @@ impl QuinnServer {
     }
 }
 
+#[derive(Default)]
 pub struct QuinnClientOptions {
     pub max_idle_timeout: Option<Duration>,
     pub keep_alive_interval: Option<Duration>,
-}
-
-impl Default for QuinnClientOptions {
-    fn default() -> Self {
-        Self {
-            max_idle_timeout: None,
-            keep_alive_interval: None,
-        }
-    }
 }
 
 #[derive(Debug)]
