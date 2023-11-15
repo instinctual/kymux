@@ -42,7 +42,8 @@ build-debian-bookworm-x86_64:
     - merge_requests
     - tags
   script: |
-    cargo build
+    cargo build \
+      --examples
 
 test-debian-bookworm-x86_64:
   stage: test
@@ -82,7 +83,9 @@ build-windows-x86_64:
     - merge_requests
     - tags
   script: |
-    cargo build --target x86_64-pc-windows-gnu
+    cargo build \
+      --target x86_64-pc-windows-gnu \
+      --examples
 
 test-windows-x86_64:
   stage: test
@@ -126,7 +129,8 @@ clippy-windows-x86_64:
     - merge_requests
     - tags
   script: |
-    cargo build
+    cargo build \
+      --examples
 
 .clippy-macos-common:
   extends: .macos-common
