@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot};
 pub use kynet::error::ConnectionError;
 
 #[derive(Debug, Error, Clone)]
-#[error("Protoocol error: {0}")]
+#[error("Protocol error: {0}")]
 pub struct ProtocolError(pub String);
 
 impl From<oneshot::error::RecvError> for ProtocolError {
