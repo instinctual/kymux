@@ -194,7 +194,10 @@ impl Connection {
                     addr,
                     &server_name,
                     roots.into(),
-                    &kyproto::quinn::QuinnClientOptions::default(),
+                    &kyproto::quinn::QuinnClientOptions {
+                        keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
+                        ..Default::default()
+                    },
                 )
                 .await?
             }
