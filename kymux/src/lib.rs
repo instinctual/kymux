@@ -185,6 +185,11 @@ impl Connection {
         Ok(())
     }
 
+    pub async fn closed(&self) -> Result<()> {
+        self.connection.closed().await?;
+        Ok(())
+    }
+
     pub async fn connect(config: ClientConfig) -> Result<Self> {
         let connection = match config {
             #[cfg(feature = "backend-quinn")]
