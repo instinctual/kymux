@@ -169,8 +169,11 @@ impl ConnectionDriver for WTransportConnectionDriver {
     }
 
     async fn closed(&self) -> Result<(), ConnectionError> {
-        self.conn.closed().await; // does not report any error
-        Ok(())
+        match self.conn.closed().await {
+            wtransport::error::ConnectionError::LocallyClosed
+            | wtransport::error::ConnectionError::ApplicationClosed(_) => Ok(()),
+            err => Err(err.into()),
+        }
     }
 
     fn close(&self, error_code: u32, reason: &str) {
