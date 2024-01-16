@@ -452,6 +452,10 @@ impl KyProto {
         };
         Ok(endpoint)
     }
+
+    pub async fn closed(&self) -> Result<(), ConnectionError> {
+        self.conn.closed().await
+    }
 }
 
 impl Drop for KyProto {
