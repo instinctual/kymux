@@ -49,7 +49,7 @@ pub enum ClientConfig {
 }
 
 #[cfg(feature = "server")]
-enum ConnectionListenerServer {
+enum ServerInner {
     #[cfg(feature = "backend-quinn")]
     Quinn(kyproto::quinn::QuinnServer),
     #[cfg(feature = "backend-wtransport")]
@@ -58,12 +58,12 @@ enum ConnectionListenerServer {
 
 // Accept a single connection
 #[cfg(feature = "server")]
-pub struct ConnectionListener {
-    endpoint: ConnectionListenerServer,
+pub struct Server {
+    endpoint: ServerInner,
 }
 
 #[cfg(feature = "server")]
-impl ConnectionListener {
+impl Server {
     pub async fn new(config: ServerConfig) -> Result<Self> {
         // Setup quinn to accept connections
         let endpoint = match config {
@@ -83,7 +83,7 @@ impl ConnectionListener {
                     },
                 )?;
 
-                ConnectionListenerServer::Quinn(endpoint)
+                ServerInner::Quinn(endpoint)
             }
             #[cfg(feature = "backend-wtransport")]
             ServerConfig::Wtransport {
@@ -101,7 +101,7 @@ impl ConnectionListener {
                     },
                 )?;
 
-                ConnectionListenerServer::Wtransport(endpoint)
+                ServerInner::Wtransport(endpoint)
             }
         };
 
@@ -111,9 +111,9 @@ impl ConnectionListener {
     pub async fn accept(self) -> Result<Connection> {
         let connection = match self.endpoint {
             #[cfg(feature = "backend-quinn")]
-            ConnectionListenerServer::Quinn(endpoint) => endpoint.accept().await?,
+            ServerInner::Quinn(endpoint) => endpoint.accept().await?,
             #[cfg(feature = "backend-wtransport")]
-            ConnectionListenerServer::Wtransport(endpoint) => endpoint.accept().await?,
+            ServerInner::Wtransport(endpoint) => endpoint.accept().await?,
         };
 
         Connection::new(

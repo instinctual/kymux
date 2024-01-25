@@ -82,8 +82,8 @@ async fn main() {
     };
 
     let server_accept_task = async move {
-        let listener = kymux::ConnectionListener::new(server_config).await.unwrap();
-        listener.accept().await.unwrap()
+        let server = kymux::Server::new(server_config).await.unwrap();
+        server.accept().await.unwrap()
     };
 
     // Client

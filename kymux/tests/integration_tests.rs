@@ -67,8 +67,8 @@ async fn create_connection() -> (kymux::Connection, kymux::Connection) {
             private_key: keys.private_key,
         };
 
-        let listener = kymux::ConnectionListener::new(config).await.unwrap();
-        listener.accept().await
+        let server = kymux::Server::new(config).await.unwrap();
+        server.accept().await
     };
 
     let client_connect = async move {
