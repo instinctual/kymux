@@ -71,6 +71,19 @@ impl QuinnServer {
         let connection = connecting.await?;
         Ok(connection.into())
     }
+
+    pub fn reject_new_connections(&self) {
+        self.endpoint.reject_new_connections();
+    }
+
+    pub fn close(&self, error_code: u32, reason: &str) {
+        let var_int = quinn::VarInt::from_u32(error_code);
+        self.endpoint.close(var_int, reason.as_bytes());
+    }
+
+    pub async fn wait_idle(&self) {
+        self.endpoint.wait_idle().await;
+    }
 }
 
 #[derive(Default)]
