@@ -125,6 +125,33 @@ impl Server {
         )
         .await
     }
+
+    pub fn reject_new_connections(&self) {
+        match &self.endpoint {
+            #[cfg(feature = "backend-quinn")]
+            ServerInner::Quinn(endpoint) => endpoint.reject_new_connections(),
+            #[cfg(feature = "backend-wtransport")]
+            ServerInner::Wtransport(endpoint) => endpoint.reject_new_connections(),
+        };
+    }
+
+    pub fn close(&self, error_code: u32, reason: &str) {
+        match &self.endpoint {
+            #[cfg(feature = "backend-quinn")]
+            ServerInner::Quinn(endpoint) => endpoint.close(error_code, reason),
+            #[cfg(feature = "backend-wtransport")]
+            ServerInner::Wtransport(endpoint) => endpoint.close(error_code, reason),
+        };
+    }
+
+    pub async fn wait_idle(&self) {
+        match &self.endpoint {
+            #[cfg(feature = "backend-quinn")]
+            ServerInner::Quinn(endpoint) => endpoint.wait_idle().await,
+            #[cfg(feature = "backend-wtransport")]
+            ServerInner::Wtransport(endpoint) => endpoint.wait_idle().await,
+        };
+    }
 }
 
 struct ConnectionParam {
