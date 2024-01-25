@@ -96,5 +96,17 @@ pub mod wtransport {
             let kyproto = KyProto::accept(conn).await?;
             Ok(kyproto)
         }
+
+        pub fn reject_new_connections(&self) {
+            self.0.reject_new_connections();
+        }
+
+        pub fn close(&self, error_code: u32, reason: &str) {
+            self.0.close(error_code, reason);
+        }
+
+        pub async fn wait_idle(&self) {
+            self.0.wait_idle().await;
+        }
     }
 }

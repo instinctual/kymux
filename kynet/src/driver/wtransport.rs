@@ -68,6 +68,19 @@ impl WTransportServer {
         let conn = request.accept().await?;
         Ok(conn.into())
     }
+
+    pub fn reject_new_connections(&self) {
+        self.endpoint.reject_new_connections();
+    }
+
+    pub fn close(&self, error_code: u32, reason: &str) {
+        let var_int = wtransport_proto::varint::VarInt::from(error_code);
+        self.endpoint.close(var_int, reason.as_bytes());
+    }
+
+    pub async fn wait_idle(&self) {
+        self.endpoint.wait_idle().await;
+    }
 }
 
 #[derive(Default)]
