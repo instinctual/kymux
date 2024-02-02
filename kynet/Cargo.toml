@@ -38,8 +38,8 @@ web-sys = { version = "0.3.64", optional = true, features = [
     "WritableStream",
     "WritableStreamDefaultWriter",
 ] }
-wtransport = { version = "0.1.7", optional = true }
-wtransport-proto = { version = "0.1.7", optional = true }
+wtransport = { version = "0.1.11", optional = true }
+wtransport-proto = { version = "0.1.11", optional = true }
 
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]

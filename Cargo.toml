@@ -7,6 +7,3 @@ members = [
     "kynet",
     "kyproto",
 ]
-
-[patch.crates-io]
-ls-qpack-sys = { path = "external/ls-qpack-rs/ls-qpack-sys" }
