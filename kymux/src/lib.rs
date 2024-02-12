@@ -108,8 +108,8 @@ impl Server {
         Ok(Self { endpoint })
     }
 
-    pub async fn accept(self) -> Result<Connection> {
-        let connection = match self.endpoint {
+    pub async fn accept(&self) -> Result<Connection> {
+        let connection = match &self.endpoint {
             #[cfg(feature = "backend-quinn")]
             ServerInner::Quinn(endpoint) => endpoint.accept().await?,
             #[cfg(feature = "backend-wtransport")]
