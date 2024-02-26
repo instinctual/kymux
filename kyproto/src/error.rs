@@ -56,6 +56,3 @@ mod js_error {
     impl_from_jsvalue!(crate::error::EndpointAlreadyRegistered);
     impl_from_jsvalue!(crate::error::ProtocolError);
 }
-
-#[cfg(all(feature = "js", target_family = "wasm"))]
-pub use js_error::*;
