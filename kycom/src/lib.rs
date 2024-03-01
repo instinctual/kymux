@@ -221,6 +221,8 @@ where
         if let Err(err) = tcp_stream.read_exact(&mut header).await {
             if err.kind() == ErrorKind::UnexpectedEof {
                 return Ok(None); // EOF
+            } else {
+                return Err(err);
             }
         }
 
