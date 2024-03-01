@@ -16,6 +16,9 @@ pub use kyproto::{
 const KYMUX_LOCAL_CLIENTS_PORT: u16 = 9090;
 
 #[allow(dead_code)]
+const MAX_IDLE_TIMEOUT: Duration = Duration::from_secs(20);
+
+#[allow(dead_code)]
 const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
 pub enum ServerConfig {
@@ -79,7 +82,7 @@ impl Server {
                     private_key.into(),
                     &kyproto::quinn::QuinnServerOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
-                        ..Default::default()
+                        max_idle_timeout: Some(MAX_IDLE_TIMEOUT),
                     },
                 )?;
 
@@ -97,7 +100,7 @@ impl Server {
                     kyproto::cert::PrivateKey::new(private_key),
                     &kyproto::wtransport::WTransportServerOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
-                        ..Default::default()
+                        max_idle_timeout: Some(MAX_IDLE_TIMEOUT),
                     },
                 )?;
 
@@ -196,7 +199,7 @@ impl Connection {
                     roots.into(),
                     &kyproto::quinn::QuinnClientOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
-                        ..Default::default()
+                        max_idle_timeout: Some(MAX_IDLE_TIMEOUT),
                     },
                 )
                 .await?
