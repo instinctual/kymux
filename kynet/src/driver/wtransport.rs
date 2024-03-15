@@ -207,7 +207,7 @@ impl SendStreamDriver for WTransportSendStreamDriver {
     }
 
     async fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError> {
-        self.send.write(buf).await?;
+        self.send.write_all(buf).await?;
         Ok(())
     }
 
