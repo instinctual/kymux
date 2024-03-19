@@ -9,15 +9,15 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-async-trait = "0.1.73"
-bytes = "1.4.0"
+async-trait = "0.1.78"
+bytes = "1.5.0"
 js-sys = { version = "0.3.64", optional = true }
-log = "0.4.20"
+log = "0.4.21"
 quinn = { version = "0.10.2", optional = true }
-rustls = { version = "0.21.7", features = ["quic"], optional = true }
-rustls-pemfile = { version = "1.0.3", optional = true }
-thiserror = "1.0.47"
-tokio = { version = "1.32.0", features = ["fs"], optional = true }
+rustls = { version = "0.21.10", features = ["quic"], optional = true }
+rustls-pemfile = { version = "1.0.4", optional = true }
+thiserror = "1.0.58"
+tokio = { version = "1.36.0", features = ["fs"], optional = true }
 wasm-bindgen = { version = "0.2.87", optional = true }
 wasm-bindgen-futures = { version = "0.4.37", optional = true }
 web-sys = { version = "0.3.64", optional = true, features = [
