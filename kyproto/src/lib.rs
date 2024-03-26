@@ -9,7 +9,6 @@ use error::*;
 use router::{KyChannel, Router};
 
 use async_trait::async_trait;
-use kynet::error::ConnectionError;
 use kynet::Connection;
 
 pub use protocol::{
