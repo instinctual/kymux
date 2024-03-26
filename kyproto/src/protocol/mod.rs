@@ -61,18 +61,22 @@ pub(crate) async fn start_video_protocol_send(
         },
         VideoProtocol::GopStream => ProtocolSend {
             driver: Box::new(
-                driver::av::gopstream::GopStreamProtocolSendDriver::start(ky_channel).await?,
+                driver::av::video_gopstream::VideoGopStreamProtocolSendDriver::start(ky_channel)
+                    .await?,
             ),
         },
         VideoProtocol::Unreliable => ProtocolSend {
             driver: Box::new(
-                driver::av::unreliable::UnreliableProtocolSendDriver::start(ky_channel).await?,
+                driver::av::video_unreliable::VideoUnreliableProtocolSendDriver::start(ky_channel)
+                    .await?,
             ),
         },
         VideoProtocol::UnreliableFec => ProtocolSend {
             driver: Box::new(
-                driver::av::unreliable_fec::UnreliableFecProtocolSendDriver::start(ky_channel)
-                    .await?,
+                driver::av::video_unreliable_fec::VideoUnreliableFecProtocolSendDriver::start(
+                    ky_channel,
+                )
+                .await?,
             ),
         },
     };
@@ -92,18 +96,22 @@ pub(crate) async fn start_video_protocol_recv(
         },
         VideoProtocol::GopStream => ProtocolRecv {
             driver: Box::new(
-                driver::av::gopstream::GopStreamProtocolRecvDriver::start(ky_channel).await?,
+                driver::av::video_gopstream::VideoGopStreamProtocolRecvDriver::start(ky_channel)
+                    .await?,
             ),
         },
         VideoProtocol::Unreliable => ProtocolRecv {
             driver: Box::new(
-                driver::av::unreliable::UnreliableProtocolRecvDriver::start(ky_channel).await?,
+                driver::av::video_unreliable::VideoUnreliableProtocolRecvDriver::start(ky_channel)
+                    .await?,
             ),
         },
         VideoProtocol::UnreliableFec => ProtocolRecv {
             driver: Box::new(
-                driver::av::unreliable_fec::UnreliableFecProtocolRecvDriver::start(ky_channel)
-                    .await?,
+                driver::av::video_unreliable_fec::VideoUnreliableFecProtocolRecvDriver::start(
+                    ky_channel,
+                )
+                .await?,
             ),
         },
     };

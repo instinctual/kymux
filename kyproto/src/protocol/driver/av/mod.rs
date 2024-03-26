@@ -5,10 +5,10 @@ use bytes::BytesMut;
 use kynet::error::ReadExactError;
 use kynet::RecvStream;
 
-pub(crate) mod gopstream;
 pub(crate) mod reliable;
-pub(crate) mod unreliable;
-pub(crate) mod unreliable_fec;
+pub(crate) mod video_gopstream;
+pub(crate) mod video_unreliable;
+pub(crate) mod video_unreliable_fec;
 
 pub(crate) async fn read_packet(recv: &mut RecvStream) -> Result<Option<AVPacket>, ProtocolError> {
     let mut header = [0; AVPacketHeader::SERIALIZED_SIZE];

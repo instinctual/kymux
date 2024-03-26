@@ -71,7 +71,7 @@ use tokio::sync::mpsc;
  * reset, so no more retransmissions will occur for the old GOPs.
  */
 
-pub(crate) struct GopStreamProtocolSendDriver {
+pub(crate) struct VideoGopStreamProtocolSendDriver {
     ky_channel: KyChannel,
     current_stream: Option<SendStream>,
     codec_gen: u32,
@@ -80,7 +80,7 @@ pub(crate) struct GopStreamProtocolSendDriver {
     config_packet: Option<MediaPacket>,
 }
 
-impl GopStreamProtocolSendDriver {
+impl VideoGopStreamProtocolSendDriver {
     pub(crate) async fn start(ky_channel: KyChannel) -> Result<Self, ProtocolError> {
         Ok(Self {
             ky_channel,
@@ -95,7 +95,7 @@ impl GopStreamProtocolSendDriver {
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-impl ProtocolSendDriver for GopStreamProtocolSendDriver {
+impl ProtocolSendDriver for VideoGopStreamProtocolSendDriver {
     type Packet = AVPacket;
 
     async fn send(&mut self, packet: AVPacket) -> Result<(), ProtocolError> {
@@ -162,7 +162,7 @@ enum RecvMsg {
     },
 }
 
-pub(crate) struct GopStreamProtocolRecvDriver {
+pub(crate) struct VideoGopStreamProtocolRecvDriver {
     tx: mpsc::Sender<RecvMsg>,
     rx: mpsc::Receiver<RecvMsg>,
     last_codec_gen: u32,
@@ -171,7 +171,7 @@ pub(crate) struct GopStreamProtocolRecvDriver {
     read_packets_task: Option<Task>,
 }
 
-impl GopStreamProtocolRecvDriver {
+impl VideoGopStreamProtocolRecvDriver {
     pub(crate) async fn start(ky_channel: KyChannel) -> Result<Self, ProtocolError> {
         let (tx, rx) = mpsc::channel(16);
 
@@ -226,7 +226,7 @@ impl GopStreamProtocolRecvDriver {
     }
 }
 
-impl Drop for GopStreamProtocolRecvDriver {
+impl Drop for VideoGopStreamProtocolRecvDriver {
     fn drop(&mut self) {
         if let Some(accept_unis_task) = self.accept_unis_task.take() {
             accept_unis_task.cancel();
@@ -239,7 +239,7 @@ impl Drop for GopStreamProtocolRecvDriver {
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-impl ProtocolRecvDriver for GopStreamProtocolRecvDriver {
+impl ProtocolRecvDriver for VideoGopStreamProtocolRecvDriver {
     type Packet = AVPacket;
 
     async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {

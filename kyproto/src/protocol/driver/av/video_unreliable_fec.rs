@@ -272,14 +272,14 @@ const KYPACKET_HEADER_SIZE: usize = AVPacketHeader::SERIALIZED_SIZE;
 //  - RaptorQ payload id: 32 bits
 const DATAGRAM_HEADER_SIZE: usize = 26;
 
-pub(crate) struct UnreliableFecProtocolSendDriver {
+pub(crate) struct VideoUnreliableFecProtocolSendDriver {
     ky_channel: KyChannel,
     stream: SendStream,
     kypacket_seq: u32,
     group_seq: u32,
 }
 
-impl UnreliableFecProtocolSendDriver {
+impl VideoUnreliableFecProtocolSendDriver {
     pub(crate) async fn start(ky_channel: KyChannel) -> Result<Self, ProtocolError> {
         let stream = ky_channel.open_uni().await?;
         Ok(Self {
@@ -345,7 +345,7 @@ impl UnreliableFecProtocolSendDriver {
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-impl ProtocolSendDriver for UnreliableFecProtocolSendDriver {
+impl ProtocolSendDriver for VideoUnreliableFecProtocolSendDriver {
     type Packet = AVPacket;
 
     async fn send(&mut self, packet: AVPacket) -> Result<(), ProtocolError> {
@@ -409,14 +409,14 @@ struct DatagramMsg {
     payload_id: raptorq::PayloadId,
 }
 
-pub(crate) struct UnreliableFecProtocolRecvDriver {
+pub(crate) struct VideoUnreliableFecProtocolRecvDriver {
     rx_client: mpsc::Receiver<AVPacket>,
     recv_stream_packets_task: Option<Task>,
     recv_datagrams_task: Option<Task>,
     process_task: Option<Task>,
 }
 
-impl UnreliableFecProtocolRecvDriver {
+impl VideoUnreliableFecProtocolRecvDriver {
     const MAX_BUFFERING: Duration = Duration::from_millis(50);
 
     pub(crate) async fn start(mut ky_channel: KyChannel) -> Result<Self, ProtocolError> {
@@ -599,7 +599,7 @@ impl UnreliableFecProtocolRecvDriver {
     }
 }
 
-impl Drop for UnreliableFecProtocolRecvDriver {
+impl Drop for VideoUnreliableFecProtocolRecvDriver {
     fn drop(&mut self) {
         if let Some(recv_stream_packets_task) = self.recv_stream_packets_task.take() {
             recv_stream_packets_task.cancel();
@@ -615,7 +615,7 @@ impl Drop for UnreliableFecProtocolRecvDriver {
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-impl ProtocolRecvDriver for UnreliableFecProtocolRecvDriver {
+impl ProtocolRecvDriver for VideoUnreliableFecProtocolRecvDriver {
     type Packet = AVPacket;
 
     async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {
@@ -775,7 +775,7 @@ impl PendingGroups {
                         };
                         if let Some(min_instant) = min_instant {
                             let deadline =
-                                min_instant + UnreliableFecProtocolRecvDriver::MAX_BUFFERING;
+                                min_instant + VideoUnreliableFecProtocolRecvDriver::MAX_BUFFERING;
                             if deadline <= Instant::now() {
                                 ready = true;
                             } else {
