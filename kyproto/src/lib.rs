@@ -13,8 +13,8 @@ use kynet::error::ConnectionError;
 use kynet::Connection;
 
 pub use protocol::{
-    AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, InputPacket, MediaPacket,
-    MediaPacketHeader, ProtocolRecv, ProtocolSend, VideoProtocol,
+    AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, InputPacket,
+    MediaPacket, MediaPacketHeader, ProtocolRecv, ProtocolSend, VideoProtocol,
 };
 
 mod clock_sync;
@@ -99,6 +99,7 @@ pub struct AudioServerEndpoint {
     id: u16,
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
+    audio_protocol: AudioProtocol,
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
@@ -112,7 +113,7 @@ impl ProtocolEndpoint for AudioServerEndpoint {
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
-        protocol::start_audio_protocol_send(self.ky_channel).await
+        protocol::start_audio_protocol_send(self.ky_channel, self.audio_protocol).await
     }
 }
 
@@ -120,6 +121,7 @@ pub struct AudioClientEndpoint {
     id: u16,
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
+    audio_protocol: AudioProtocol,
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
@@ -133,7 +135,7 @@ impl ProtocolEndpoint for AudioClientEndpoint {
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
-        protocol::start_audio_protocol_recv(self.ky_channel).await
+        protocol::start_audio_protocol_recv(self.ky_channel, self.audio_protocol).await
     }
 }
 
@@ -373,6 +375,7 @@ impl KyProto {
     pub async fn register_audio_endpoint(
         &self,
         id: Option<u16>,
+        audio_protocol: AudioProtocol,
     ) -> Result<AudioServerEndpoint, ProtocolError> {
         let id = self.get_endpoint_id(id);
         let ready_notifier = self.control.register_ready_notifier(id)?;
@@ -382,17 +385,23 @@ impl KyProto {
             id,
             ready_notifier,
             ky_channel,
+            audio_protocol,
         };
         Ok(endpoint)
     }
 
-    pub fn connect_audio_endpoint(&self, id: u16) -> Result<AudioClientEndpoint, ProtocolError> {
+    pub fn connect_audio_endpoint(
+        &self,
+        id: u16,
+        audio_protocol: AudioProtocol,
+    ) -> Result<AudioClientEndpoint, ProtocolError> {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
         let endpoint = AudioClientEndpoint {
             id,
             ready_notifier,
             ky_channel,
+            audio_protocol,
         };
         Ok(endpoint)
     }
