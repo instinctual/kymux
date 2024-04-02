@@ -12,7 +12,7 @@ use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::{self, JoinHandle};
 
-use kymux::VideoProtocol;
+use kymux::{AudioProtocol, VideoProtocol};
 
 const SERVER_NAME: &str = "kymux_test";
 const PORT: u16 = 10000;
@@ -20,7 +20,7 @@ const PORT: u16 = 10000;
 #[derive(Debug)]
 enum StreamType {
     Video(VideoProtocol),
-    Audio,
+    Audio(AudioProtocol),
     Input,
 }
 
@@ -288,7 +288,7 @@ fn spawn_tasks(
     stream_type: StreamType,
 ) -> Vec<JoinHandle<()>> {
     match stream_type {
-        StreamType::Audio | StreamType::Video(_) => {
+        StreamType::Audio(_) | StreamType::Video(_) => {
             let producer_task = task::spawn(run_producer::<AvStreamIo>(producer_config));
             let consumer_task = task::spawn(run_consumer::<AvStreamIo>(consumer_config));
 
@@ -351,7 +351,7 @@ async fn stress_test() {
         TestStep::RunTest {
             endpoint_creator: Actor::Client,
             producer: Actor::Client,
-            stream_type: StreamType::Audio,
+            stream_type: StreamType::Audio(AudioProtocol::Reliable),
             block_size: 1024,
             generate_size: 1024 * 1024 * 50,
             write_delay: None,
@@ -369,7 +369,7 @@ async fn stress_test() {
         TestStep::RunTest {
             endpoint_creator: Actor::Server,
             producer: Actor::Server,
-            stream_type: StreamType::Audio,
+            stream_type: StreamType::Audio(AudioProtocol::Reliable),
             block_size: 1024,
             generate_size: 1024 * 1024 * 50,
             write_delay: None,
@@ -429,13 +429,13 @@ async fn stress_test() {
                 };
 
                 let (registerer_uri, connector_uri) = match stream_type {
-                    StreamType::Audio => {
+                    StreamType::Audio(protocol) => {
                         let (endpoint, registerer_uri) = endpoint_registerer
-                            .register_audio_endpoint_with_ipc_forward(None)
+                            .register_audio_endpoint_with_ipc_forward(None, protocol)
                             .await
                             .unwrap();
                         let connector_uri = endpoint_connector
-                            .connect_audio_endpoint_with_ipc_forward(endpoint)
+                            .connect_audio_endpoint_with_ipc_forward(endpoint, protocol)
                             .unwrap();
 
                         (registerer_uri, connector_uri)
@@ -540,7 +540,7 @@ async fn stress_test() {
 
                 (registerer_uri, connector_uri)
             }
-            StreamType::Audio => panic!("Unexpected stream type {stream_type:?}"),
+            StreamType::Audio(_) => panic!("Unexpected stream type {stream_type:?}"),
         };
 
         // Create the configurations

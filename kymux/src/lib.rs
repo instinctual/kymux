@@ -7,7 +7,7 @@ use std::time::Duration;
 
 pub use error::{Error, Result};
 pub use kyproto::{
-    AVPacket, AudioClientEndpoint, AudioServerEndpoint, InputEndpoint, InputPacket,
+    AVPacket, AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, InputEndpoint, InputPacket,
     ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint, VideoProtocol,
     VideoServerEndpoint,
 };
@@ -294,7 +294,10 @@ impl Connection {
     }
 
     pub async fn register_audio_endpoint(&self, id: Option<u16>) -> Result<AudioServerEndpoint> {
-        let endpoint = self.connection.register_audio_endpoint(id).await?;
+        let endpoint = self
+            .connection
+            .register_audio_endpoint(id, AudioProtocol::Reliable)
+            .await?;
         Ok(endpoint)
     }
 
@@ -315,7 +318,9 @@ impl Connection {
     }
 
     pub fn connect_audio_endpoint(&self, id: u16) -> Result<AudioClientEndpoint> {
-        let endpoint = self.connection.connect_audio_endpoint(id)?;
+        let endpoint = self
+            .connection
+            .connect_audio_endpoint(id, AudioProtocol::Reliable)?;
         Ok(endpoint)
     }
 
