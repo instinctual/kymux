@@ -26,6 +26,7 @@ pub struct CodecPacket {
 pub struct CodecPacketHeader {
     pub codec: u32,
     pub rotation: u8,
+    pub frame_size: u16,
 }
 
 #[derive(Debug)]
@@ -48,7 +49,8 @@ impl CodecPacketHeader {
 
         BigEndian::write_u32(&mut buf[..4], self.codec);
         buf[4] = self.rotation;
-        buf[5..].fill(0);
+        BigEndian::write_u16(&mut buf[5..7], self.frame_size);
+        buf[7..].fill(0);
     }
 
     pub fn serialize(&self) -> [u8; AVPacketHeader::SERIALIZED_SIZE] {
@@ -63,7 +65,12 @@ impl CodecPacketHeader {
 
         let codec = BigEndian::read_u32(&buf[..4]);
         let rotation = buf[4];
-        Self { codec, rotation }
+        let frame_size = BigEndian::read_u16(&buf[5..7]);
+        Self {
+            codec,
+            rotation,
+            frame_size,
+        }
     }
 }
 
