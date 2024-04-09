@@ -217,7 +217,7 @@ where
     }
 
     async fn recv_av_packet(tcp_stream: &mut TcpStream) -> Result<Option<AVPacket>> {
-        let mut header = [0; 12];
+        let mut header = [0; AVPacketHeader::SERIALIZED_SIZE];
         if let Err(err) = tcp_stream.read_exact(&mut header).await {
             if err.kind() == ErrorKind::UnexpectedEof {
                 return Ok(None); // EOF

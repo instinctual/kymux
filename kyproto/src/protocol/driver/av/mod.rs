@@ -11,7 +11,7 @@ pub(crate) mod unreliable;
 pub(crate) mod unreliable_fec;
 
 pub(crate) async fn read_packet(recv: &mut RecvStream) -> Result<Option<AVPacket>, ProtocolError> {
-    let mut header = [0; 12];
+    let mut header = [0; AVPacketHeader::SERIALIZED_SIZE];
     let res = recv.read_exact(&mut header).await;
     if let Err(ReadExactError::FinishedEarly(read)) = res {
         if read == 0 {
