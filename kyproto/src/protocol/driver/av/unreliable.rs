@@ -242,6 +242,14 @@ use tokio::sync::mpsc;
 
 const KYPACKET_HEADER_SIZE: usize = AVPacketHeader::SERIALIZED_SIZE;
 
+// Datagram header:
+//  - endpoint id (to be written explicitly): 16 bits
+//  - kypacket_seq: 32 bits
+//  - group_seq: 32 bits (incremented on each config packet)
+//  - end (last datagram of kypacket flag): 1 bit
+//  - datagram number: 31 bits
+const DATAGRAM_HEADER_SIZE: usize = 14;
+
 pub(crate) struct UnreliableProtocolSendDriver {
     ky_channel: KyChannel,
     stream: SendStream,
@@ -265,15 +273,7 @@ impl UnreliableProtocolSendDriver {
             .ky_channel
             .max_datagram_size()
             .ok_or_else(|| ProtocolError("Datagram not supported".to_string()))?;
-        const HEADER_SIZE: usize = 20;
-        assert!(max_datagram_size > HEADER_SIZE);
-        // Datagram header:
-        //  - endpoint id (to be written explicitly): 16 bits
-        //  - kypacket_seq: 32 bits
-        //  - group_seq: 32 bits (incremented on each config packet)
-        //  - end (last datagram of kypacket flag): 1 bit
-        //  - datagram number: 31 bits
-        //  - kypacket segment
+        assert!(max_datagram_size > DATAGRAM_HEADER_SIZE);
 
         let header = packet.header.serialize();
         let kypacket_size = header.len() + packet.payload.len();
@@ -286,8 +286,11 @@ impl UnreliableProtocolSendDriver {
         let mut offset = 0;
         let mut datagram_number = 0;
         while offset < data.len() {
-            let payload_size = std::cmp::min(max_datagram_size - HEADER_SIZE, data.len() - offset);
-            let mut buf = BytesMut::with_capacity(HEADER_SIZE + payload_size);
+            let payload_size = std::cmp::min(
+                max_datagram_size - DATAGRAM_HEADER_SIZE,
+                data.len() - offset,
+            );
+            let mut buf = BytesMut::with_capacity(DATAGRAM_HEADER_SIZE + payload_size);
 
             assert!(payload_size < 1 << 16);
 
@@ -459,7 +462,7 @@ impl UnreliableProtocolRecvDriver {
     ) -> Result<(), ProtocolError> {
         loop {
             let mut datagram = ky_channel.recv_datagram().await?;
-            assert!(datagram.len() >= 20);
+            assert!(datagram.len() >= DATAGRAM_HEADER_SIZE);
             let _endpoint_id = datagram.get_u16();
             let raw_kypacket_seq = datagram.get_u32();
             let raw_group_seq = datagram.get_u32();

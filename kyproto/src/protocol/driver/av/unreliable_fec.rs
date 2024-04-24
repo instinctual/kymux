@@ -264,6 +264,14 @@ use tokio::sync::mpsc;
 
 const KYPACKET_HEADER_SIZE: usize = AVPacketHeader::SERIALIZED_SIZE;
 
+// Datagram header:
+//  - endpoint id (to be written explicitly): 16 bits
+//  - kypacket_seq: 32 bits
+//  - group_seq: 32 bits (incremented on each config packet)
+//  - RaptorQ Object Transmission Information: 96 bits
+//  - RaptorQ payload id: 32 bits
+const DATAGRAM_HEADER_SIZE: usize = 26;
+
 pub(crate) struct UnreliableFecProtocolSendDriver {
     ky_channel: KyChannel,
     stream: SendStream,
@@ -287,18 +295,10 @@ impl UnreliableFecProtocolSendDriver {
             .ky_channel
             .max_datagram_size()
             .ok_or_else(|| ProtocolError("Datagram not supported".to_string()))?;
-        const HEADER_SIZE: usize = 32;
-        assert!(max_datagram_size > HEADER_SIZE);
+        assert!(max_datagram_size > DATAGRAM_HEADER_SIZE);
         assert!(max_datagram_size < 0x10000);
-        // Datagram header:
-        //  - endpoint id (to be written explicitly): 16 bits
-        //  - kypacket_seq: 32 bits
-        //  - group_seq: 32 bits (incremented on each config packet)
-        //  - RaptorQ Object Transmission Information: 96 bits
-        //  - RaptorQ payload id: 32 bits
-        //  - kypacket segment
 
-        let max_payload_size = (max_datagram_size - HEADER_SIZE) as u16;
+        let max_payload_size = (max_datagram_size - DATAGRAM_HEADER_SIZE) as u16;
 
         let header = packet.header.serialize();
         let kypacket_size = header.len() + packet.payload.len();
@@ -326,7 +326,7 @@ impl UnreliableFecProtocolSendDriver {
 
             let (payload_id, data) = encoded_packet.split();
             let raw_payload_id = payload_id.serialize();
-            let mut buf = BytesMut::with_capacity(HEADER_SIZE + data.len());
+            let mut buf = BytesMut::with_capacity(DATAGRAM_HEADER_SIZE + data.len());
             self.ky_channel.write_datagram_header(&mut buf);
             buf.put_u32(kypacket_seq);
             buf.put_u32(group_seq);
@@ -487,7 +487,7 @@ impl UnreliableFecProtocolRecvDriver {
     ) -> Result<(), ProtocolError> {
         loop {
             let mut datagram = ky_channel.recv_datagram().await?;
-            assert!(datagram.len() >= 20);
+            assert!(datagram.len() >= DATAGRAM_HEADER_SIZE);
             let _endpoint_id = datagram.get_u16();
             let raw_kypacket_seq = datagram.get_u32();
             let raw_group_seq = datagram.get_u32();
