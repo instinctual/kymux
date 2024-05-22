@@ -885,12 +885,15 @@ impl DatagramSegments {
         if index >= self.segments.len() {
             self.segments.resize(index + 1, None);
         }
-        assert!(self.segments[index].is_none());
-        self.segments[index] = Some(segment);
-        self.segments_count += 1;
-        if end {
-            assert!(self.total_segments.is_none());
-            self.total_segments = Some(index + 1)
+        if self.segments[index].is_none() {
+            self.segments[index] = Some(segment);
+            self.segments_count += 1;
+            if end {
+                assert!(self.total_segments.is_none());
+                self.total_segments = Some(index + 1)
+            }
+        } else {
+            debug!("Discarding dupliate datagram {}:{index}", self.kypacket_seq);
         }
     }
 
