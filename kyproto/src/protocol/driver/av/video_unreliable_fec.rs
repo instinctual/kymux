@@ -381,6 +381,7 @@ impl ProtocolSendDriver for VideoUnreliableFecProtocolSendDriver {
 
                 self.kypacket_seq = self.kypacket_seq.wrapping_add(1);
             }
+            AVPacket::Hole(_) => panic!("Unexpected input hole packet"),
         }
 
         Ok(())

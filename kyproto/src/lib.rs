@@ -12,8 +12,9 @@ use async_trait::async_trait;
 use kynet::Connection;
 
 pub use protocol::{
-    AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, InputPacket,
-    MediaPacket, MediaPacketHeader, ProtocolRecv, ProtocolSend, VideoProtocol,
+    AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, HolePacket,
+    HolePacketHeader, InputPacket, MediaPacket, MediaPacketHeader, ProtocolRecv, ProtocolSend,
+    VideoProtocol,
 };
 
 mod clock_sync;

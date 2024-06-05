@@ -2,7 +2,8 @@
 
 use crate::error::ProtocolError;
 pub use crate::protocol::av::{
-    AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, MediaPacket, MediaPacketHeader,
+    AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, HolePacket, HolePacketHeader,
+    MediaPacket, MediaPacketHeader,
 };
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
 pub use crate::protocol::input::InputPacket;

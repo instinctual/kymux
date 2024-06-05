@@ -5,12 +5,14 @@ use bytes::Bytes;
 pub enum AVPacket {
     Codec(CodecPacket),
     Media(MediaPacket),
+    Hole(HolePacket),
 }
 
 #[derive(Debug)]
 pub enum AVPacketHeader {
     Codec(CodecPacketHeader),
     Media(MediaPacketHeader),
+    Hole(HolePacketHeader),
 }
 
 impl AVPacketHeader {
@@ -41,6 +43,16 @@ pub struct MediaPacketHeader {
     pub is_key: bool,
     pub pts: u64,
     pub size: u32,
+}
+
+#[derive(Debug)]
+pub struct HolePacket {
+    pub header: HolePacketHeader,
+}
+
+#[derive(Debug)]
+pub struct HolePacketHeader {
+    pub missing_audio_samples: u32,
 }
 
 impl CodecPacketHeader {
@@ -117,15 +129,46 @@ impl MediaPacketHeader {
     }
 }
 
+impl HolePacketHeader {
+    pub fn serialize_to(&self, buf: &mut [u8]) {
+        assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
+
+        buf[..4].fill(0);
+        BigEndian::write_u32(&mut buf[4..8], self.missing_audio_samples);
+        buf[8..].fill(0);
+    }
+
+    pub fn serialize(&self) -> [u8; AVPacketHeader::SERIALIZED_SIZE] {
+        let mut buf = [0; AVPacketHeader::SERIALIZED_SIZE];
+        self.serialize_to(&mut buf);
+        buf
+    }
+
+    pub fn deserialize(buf: &[u8]) -> Self {
+        assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
+        assert!(buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 0); // missing-info packet
+
+        let missing_audio_samples = BigEndian::read_u32(&buf[4..8]);
+        // never use such a packet if there are no missing samples
+        assert!(missing_audio_samples > 0);
+
+        Self {
+            missing_audio_samples,
+        }
+    }
+}
+
 impl AVPacketHeader {
     pub fn deserialize(buf: &[u8]) -> Self {
         assert!(buf.len() == AVPacketHeader::SERIALIZED_SIZE);
 
-        let is_codec = buf[0] & 0x80 == 0;
-        if is_codec {
-            Self::Codec(CodecPacketHeader::deserialize(buf))
-        } else {
+        let is_media = buf[0] & 0x80 != 0;
+        if is_media {
             Self::Media(MediaPacketHeader::deserialize(buf))
+        } else if buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 0 {
+            Self::Hole(HolePacketHeader::deserialize(buf))
+        } else {
+            Self::Codec(CodecPacketHeader::deserialize(buf))
         }
     }
 }

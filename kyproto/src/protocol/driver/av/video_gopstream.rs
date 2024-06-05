@@ -147,6 +147,7 @@ impl ProtocolSendDriver for VideoGopStreamProtocolSendDriver {
                     }
                 }
             }
+            AVPacket::Hole(_) => panic!("Unexpected input hole packet"),
         }
         Ok(())
     }
@@ -286,6 +287,7 @@ impl ProtocolRecvDriver for VideoGopStreamProtocolRecvDriver {
                                 self.last_config_gen = config_gen;
                             }
                         }
+                        AVPacket::Hole(_) => panic!("Unexpected input hole packet"),
                     }
 
                     return Ok(Some(packet));

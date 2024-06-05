@@ -1,4 +1,4 @@
-use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
+use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, HolePacket, MediaPacket};
 use crate::protocol::ProtocolError;
 
 use bytes::BytesMut;
@@ -33,6 +33,7 @@ pub(crate) async fn read_packet(recv: &mut RecvStream) -> Result<Option<AVPacket
             })
         }
         AVPacketHeader::Codec(header) => AVPacket::Codec(CodecPacket { header }),
+        AVPacketHeader::Hole(header) => AVPacket::Hole(HolePacket { header }),
     };
 
     Ok(Some(packet))

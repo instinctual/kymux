@@ -36,6 +36,7 @@ impl ProtocolSendDriver for ReliableProtocolSendDriver {
                 self.send.write_all(&header).await?;
                 self.send.write_all(&packet.payload).await?;
             }
+            AVPacket::Hole(_) => panic!("Unexpected input hole packet"),
         }
 
         Ok(())

@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use kyproto::error::ProtocolError;
 use kyproto::{
-    AVPacket, AVPacketHeader, AudioClientEndpoint, AudioServerEndpoint, CodecPacket, InputEndpoint,
-    InputPacket, MediaPacket, ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint,
-    VideoServerEndpoint,
+    AVPacket, AVPacketHeader, AudioClientEndpoint, AudioServerEndpoint, CodecPacket, HolePacket,
+    InputEndpoint, InputPacket, MediaPacket, ProtocolEndpoint, ProtocolRecv, ProtocolSend,
+    VideoClientEndpoint, VideoServerEndpoint,
 };
 #[allow(unused)]
 use log::{debug, error, info, warn};
@@ -196,6 +196,10 @@ where
                 tcp_stream.write_all(&header).await?;
                 tcp_stream.write_all(&packet.payload).await?;
             }
+            AVPacket::Hole(packet) => {
+                let header = packet.header.serialize();
+                tcp_stream.write_all(&header).await?;
+            }
         }
 
         Ok(())
@@ -242,6 +246,7 @@ where
                 })
             }
             AVPacketHeader::Codec(header) => AVPacket::Codec(CodecPacket { header }),
+            AVPacketHeader::Hole(header) => AVPacket::Hole(HolePacket { header }),
         };
 
         Ok(Some(packet))
