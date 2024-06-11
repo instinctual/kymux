@@ -600,12 +600,15 @@ impl UnreliableProtocolRecvDriver {
         }
     }
 
-    fn insert_stream_packet(&mut self, group_seq: u64, packet: StreamPacket) {
+    fn insert_stream_packet(&mut self, group_seq: u64, kypacket_seq: u64, packet: AVPacket) {
         let index = self.prepare_pending_group(group_seq);
 
         let pending_group = &mut self.pending_groups[index];
         assert!(pending_group.config_packet.is_none());
-        pending_group.config_packet = ConfigPacket::Ready(packet);
+        pending_group.config_packet = ConfigPacket::Ready(StreamPacket {
+            packet,
+            kypacket_seq,
+        });
     }
 }
 
@@ -642,13 +645,7 @@ impl ProtocolRecvDriver for UnreliableProtocolRecvDriver {
                             let group_seq = self.group_sequencer.seq(msg.raw_group_seq);
 
                             if kypacket_seq >= self.next_kypacket_seq {
-                                self.insert_stream_packet(
-                                    group_seq,
-                                    StreamPacket {
-                                        packet: msg.packet,
-                                        kypacket_seq,
-                                    },
-                                );
+                                self.insert_stream_packet(group_seq, kypacket_seq, msg.packet);
                             }
                         }
                         Some(RecvMsg::Datagram(msg)) => {
