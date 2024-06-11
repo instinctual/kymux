@@ -639,7 +639,7 @@ impl ProtocolRecvDriver for UnreliableProtocolRecvDriver {
                             }
 
                             let kypacket_seq = self.kypacket_sequencer.seq(msg.raw_kypacket_seq);
-                            let group_seq = self.kypacket_sequencer.seq(msg.raw_group_seq);
+                            let group_seq = self.group_sequencer.seq(msg.raw_group_seq);
 
                             if kypacket_seq >= self.next_kypacket_seq {
                                 self.insert_stream_packet(
@@ -653,7 +653,7 @@ impl ProtocolRecvDriver for UnreliableProtocolRecvDriver {
                         }
                         Some(RecvMsg::Datagram(msg)) => {
                             let kypacket_seq = self.kypacket_sequencer.seq(msg.raw_kypacket_seq);
-                            let group_seq = self.kypacket_sequencer.seq(msg.raw_group_seq);
+                            let group_seq = self.group_sequencer.seq(msg.raw_group_seq);
 
                             if kypacket_seq < self.next_kypacket_seq {
                                 debug!("===== DROP datagram {kypacket_seq}:{}", msg.datagram_number);
