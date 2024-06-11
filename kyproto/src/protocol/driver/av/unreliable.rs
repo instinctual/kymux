@@ -113,8 +113,8 @@ use tokio::sync::mpsc;
 * re-constructed packets (stream packets and datagram messages).
 *
 * In parallel, it consumes this queue (it may also be waken up by a timeout)
-* to send packets in order to the kyproto client. Some packets may be missing
-* (if not received on time).
+* to send packets to a client queue, ready to be consumed by the kyproto client.
+* Some packets may be missing (if not received on time).
 *
 * The received packets are stored in a way which facilitates processing and
 * decision to send data to the client. Kynet datagrams pass through an
@@ -385,13 +385,10 @@ struct DatagramMsg {
 }
 
 pub(crate) struct UnreliableProtocolRecvDriver {
-    rx: mpsc::Receiver<RecvMsg>,
+    rx_client: mpsc::Receiver<AVPacket>,
     recv_stream_packets_task: Option<Task>,
     recv_datagrams_task: Option<Task>,
-    next_kypacket_seq: u64,
-    group_sequencer: Sequencer<u32>,
-    kypacket_sequencer: Sequencer<u32>,
-    pending_groups: PendingGroups,
+    process_task: Option<Task>,
 }
 
 impl UnreliableProtocolRecvDriver {
@@ -401,6 +398,7 @@ impl UnreliableProtocolRecvDriver {
         let stream = ky_channel.accept_uni().await?;
 
         let (tx, rx) = mpsc::channel(16);
+        let (tx_client, rx_client) = mpsc::channel(16);
 
         let tx2 = tx.clone();
         let recv_stream_packets_task = Task::spawn_task(
@@ -421,15 +419,21 @@ impl UnreliableProtocolRecvDriver {
             },
             "recv_datagrams",
         );
+        let process_task = Task::spawn_task(
+            async move {
+                let ret = Self::process(rx, tx_client).await;
+                if let Err(err) = ret {
+                    error!("process() error: {err}");
+                }
+            },
+            "process",
+        );
 
         Ok(Self {
-            rx,
+            rx_client,
             recv_stream_packets_task: Some(recv_stream_packets_task),
             recv_datagrams_task: Some(recv_datagrams_task),
-            next_kypacket_seq: 0,
-            group_sequencer: Sequencer::new(),
-            kypacket_sequencer: Sequencer::new(),
-            pending_groups: PendingGroups::new(),
+            process_task: Some(process_task),
         })
     }
 
@@ -481,58 +485,49 @@ impl UnreliableProtocolRecvDriver {
             .await?;
         }
     }
-}
 
-impl Drop for UnreliableProtocolRecvDriver {
-    fn drop(&mut self) {
-        if let Some(recv_stream_packets_task) = self.recv_stream_packets_task.take() {
-            recv_stream_packets_task.cancel();
-        }
-        if let Some(recv_datagrams_task) = self.recv_datagrams_task.take() {
-            recv_datagrams_task.cancel();
-        }
-    }
-}
-
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-impl ProtocolRecvDriver for UnreliableProtocolRecvDriver {
-    type Packet = AVPacket;
-
-    async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {
+    async fn process(
+        mut rx: mpsc::Receiver<RecvMsg>,
+        mut tx_client: mpsc::Sender<AVPacket>,
+    ) -> Result<(), ProtocolError> {
+        let mut group_sequencer = Sequencer::<u32>::new();
+        let mut kypacket_sequencer = Sequencer::<u32>::new();
+        let mut pending_groups = PendingGroups::new();
+        let mut next_kypacket_seq = 0u64;
         let mut deadline = None;
 
         loop {
             tokio::select! {
-                msg = self.rx.recv() => {
+                msg = rx.recv() => {
                     match msg {
                         Some(RecvMsg::Stream(msg)) => {
                             if let AVPacket::Codec(packet) = &msg.packet {
                                 debug!("===== SEND codec packet to client");
-                                return Ok(Some(msg.packet));
+                                tx_client.send(msg.packet).await?;
+                                continue;
                             }
 
-                            let kypacket_seq = self.kypacket_sequencer.seq(msg.raw_kypacket_seq);
-                            let group_seq = self.group_sequencer.seq(msg.raw_group_seq);
+                            let kypacket_seq = kypacket_sequencer.seq(msg.raw_kypacket_seq);
+                            let group_seq = group_sequencer.seq(msg.raw_group_seq);
 
-                            if kypacket_seq >= self.next_kypacket_seq {
-                                self.pending_groups.insert_stream_packet(group_seq, kypacket_seq, msg.packet);
+                            if kypacket_seq >= next_kypacket_seq {
+                                pending_groups.insert_stream_packet(group_seq, kypacket_seq, msg.packet);
                             }
                         }
                         Some(RecvMsg::Datagram(msg)) => {
-                            let kypacket_seq = self.kypacket_sequencer.seq(msg.raw_kypacket_seq);
-                            let group_seq = self.group_sequencer.seq(msg.raw_group_seq);
+                            let kypacket_seq = kypacket_sequencer.seq(msg.raw_kypacket_seq);
+                            let group_seq = group_sequencer.seq(msg.raw_group_seq);
 
-                            if kypacket_seq < self.next_kypacket_seq {
+                            if kypacket_seq < next_kypacket_seq {
                                 debug!("===== DROP datagram {kypacket_seq}:{}", msg.datagram_number);
                                 // ignore
                                 continue;
                             }
 
                             debug!("===== RECV datagram {kypacket_seq}:{}", msg.datagram_number);
-                            self.pending_groups.insert_datagram(group_seq, kypacket_seq, msg.datagram_number, msg.end, msg.data);
+                            pending_groups.insert_datagram(group_seq, kypacket_seq, msg.datagram_number, msg.end, msg.data);
                         }
-                        None => return Ok(None), // No more data
+                        None => return Ok(()), // No more data
                     }
                 }
                 Some(_) = async move {
@@ -546,7 +541,7 @@ impl ProtocolRecvDriver for UnreliableProtocolRecvDriver {
                 } => {}
             }
 
-            match self.pending_groups.take_next_packet(self.next_kypacket_seq) {
+            match pending_groups.take_next_packet(next_kypacket_seq) {
                 Action::None => {}
                 Action::Deadline(instant) => {
                     deadline = Some(instant);
@@ -557,24 +552,45 @@ impl ProtocolRecvDriver for UnreliableProtocolRecvDriver {
                     packet,
                 } => {
                     debug!("===== SEND kypacket {kypacket_seq} to client");
-                    if kypacket_seq > self.next_kypacket_seq {
-                        if kypacket_seq == self.next_kypacket_seq + 1 {
-                            warn!("Missing packet {}", self.next_kypacket_seq);
+                    if kypacket_seq > next_kypacket_seq {
+                        if kypacket_seq == next_kypacket_seq + 1 {
+                            warn!("Missing packet {next_kypacket_seq}");
                         } else {
                             warn!(
-                                "Missing packets {} to {}",
-                                self.next_kypacket_seq,
+                                "Missing packets {next_kypacket_seq} to {}",
                                 kypacket_seq - 1
                             );
                         }
                     }
-                    self.next_kypacket_seq = kypacket_seq + 1;
-                    return Ok(Some(packet));
+                    next_kypacket_seq = kypacket_seq + 1;
+                    tx_client.send(packet).await?;
                 }
             }
         }
+    }
+}
 
-        Ok(None)
+impl Drop for UnreliableProtocolRecvDriver {
+    fn drop(&mut self) {
+        if let Some(recv_stream_packets_task) = self.recv_stream_packets_task.take() {
+            recv_stream_packets_task.cancel();
+        }
+        if let Some(recv_datagrams_task) = self.recv_datagrams_task.take() {
+            recv_datagrams_task.cancel();
+        }
+        if let Some(process_task) = self.process_task.take() {
+            process_task.cancel();
+        }
+    }
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolRecvDriver for UnreliableProtocolRecvDriver {
+    type Packet = AVPacket;
+
+    async fn recv(&mut self) -> Result<Option<AVPacket>, ProtocolError> {
+        Ok(self.rx_client.recv().await)
     }
 }
 
