@@ -416,7 +416,7 @@ pub(crate) struct UnreliableFecProtocolRecvDriver {
     next_kypacket_seq: u64,
     group_sequencer: Sequencer<u32>,
     kypacket_sequencer: Sequencer<u32>,
-    pending_groups: Vec<PendingGroup>,
+    pending_groups: PendingGroups,
 }
 
 impl UnreliableFecProtocolRecvDriver {
@@ -454,7 +454,7 @@ impl UnreliableFecProtocolRecvDriver {
             next_kypacket_seq: 0,
             group_sequencer: Sequencer::new(),
             kypacket_sequencer: Sequencer::new(),
-            pending_groups: Vec::new(),
+            pending_groups: PendingGroups::new(),
         })
     }
 
@@ -510,135 +510,6 @@ impl UnreliableFecProtocolRecvDriver {
             .await?;
         }
     }
-
-    fn next_packet(&self) -> NextPacket {
-        let mut cached_min_instant = None;
-
-        for (pending_group_index, pending_group) in self.pending_groups.iter().enumerate() {
-            // Ignore pending groups without config packet
-            if !pending_group.config_packet.is_none() {
-                if let ConfigPacket::Ready(packet) = &pending_group.config_packet {
-                    if packet.kypacket_seq == self.next_kypacket_seq {
-                        // The config packet is the next expected packet
-                        return NextPacket::Ready(PacketRef {
-                            pending_group_index,
-                            config_packet: true,
-                        });
-                    }
-                }
-
-                let datagrams = &pending_group.datagrams;
-                if !datagrams.is_empty() {
-                    let mut ready = false;
-                    if datagrams[0].kypacket_seq == self.next_kypacket_seq {
-                        ready = true;
-                    } else {
-                        // cached_min_instant is an Option<Option<Instant>>:
-                        //  - the first Option indicates if the value is cached
-                        //  - the second Option is there is a min instant at
-                        //    all (if there are no items at all, there is no min)
-                        let min_instant = if let Some(cached) = cached_min_instant {
-                            cached
-                        } else {
-                            let min_instant = self.min_instant();
-                            cached_min_instant = Some(min_instant);
-                            min_instant
-                        };
-                        if let Some(min_instant) = min_instant {
-                            let deadline = min_instant + Self::MAX_BUFFERING;
-                            if deadline <= Instant::now() {
-                                ready = true;
-                            } else {
-                                return NextPacket::Deadline(deadline);
-                            }
-                        }
-                    }
-                    if ready {
-                        // Send either the datagram or the previous config packet if not sent yet
-                        return NextPacket::Ready(PacketRef {
-                            pending_group_index,
-                            config_packet: pending_group.config_packet.is_ready(),
-                        });
-                    }
-                }
-            }
-        }
-
-        NextPacket::None
-    }
-
-    fn min_instant(&self) -> Option<Instant> {
-        // Minimum of all datagrams instants across all pending groups
-        self.pending_groups
-            .iter()
-            .filter_map(|pending_group| {
-                pending_group
-                    .datagrams
-                    .iter()
-                    .map(|datagram| datagram.instant)
-                    .min()
-            })
-            .min()
-    }
-
-    fn take_next_packet(&mut self) -> Action {
-        match self.next_packet() {
-            NextPacket::None => Action::None,
-            NextPacket::Deadline(instant) => Action::Deadline(instant),
-            NextPacket::Ready(packet_ref) => {
-                if packet_ref.pending_group_index > 0 {
-                    self.pending_groups.drain(..packet_ref.pending_group_index);
-                }
-
-                let pending_group = &mut self.pending_groups[0];
-
-                assert!(!pending_group.config_packet.is_none());
-
-                if packet_ref.config_packet {
-                    assert!(pending_group.config_packet.is_ready());
-                    let config_packet = pending_group.config_packet.consume();
-                    Action::Packet {
-                        kypacket_seq: config_packet.kypacket_seq,
-                        packet: config_packet.packet,
-                    }
-                } else {
-                    assert!(!pending_group.datagrams.is_empty());
-                    let datagram = pending_group.datagrams.remove(0);
-                    pending_group.drop_expired_segments(datagram.kypacket_seq);
-                    Action::Packet {
-                        kypacket_seq: datagram.kypacket_seq,
-                        packet: datagram.packet,
-                    }
-                }
-            }
-        }
-    }
-
-    fn prepare_pending_group(&mut self, group_seq: u64) -> usize {
-        let index = self
-            .pending_groups
-            .binary_search_by_key(&group_seq, |pending_group| pending_group.group_seq);
-
-        match index {
-            Ok(index) => index,
-            Err(index) => {
-                let pending_group = PendingGroup::new(group_seq);
-                self.pending_groups.insert(index, pending_group);
-                index
-            }
-        }
-    }
-
-    fn insert_stream_packet(&mut self, group_seq: u64, kypacket_seq: u64, packet: AVPacket) {
-        let index = self.prepare_pending_group(group_seq);
-
-        let pending_group = &mut self.pending_groups[index];
-        assert!(pending_group.config_packet.is_none());
-        pending_group.config_packet = ConfigPacket::Ready(StreamPacket {
-            packet,
-            kypacket_seq,
-        });
-    }
 }
 
 impl Drop for UnreliableFecProtocolRecvDriver {
@@ -674,7 +545,7 @@ impl ProtocolRecvDriver for UnreliableFecProtocolRecvDriver {
                             let group_seq = self.group_sequencer.seq(msg.raw_group_seq);
 
                             if kypacket_seq >= self.next_kypacket_seq {
-                                self.insert_stream_packet(group_seq, kypacket_seq, msg.packet);
+                                self.pending_groups.insert_stream_packet(group_seq, kypacket_seq, msg.packet);
                             }
                         }
                         Some(RecvMsg::Datagram(msg)) => {
@@ -688,9 +559,7 @@ impl ProtocolRecvDriver for UnreliableFecProtocolRecvDriver {
                             }
 
                             debug!("===== RECV datagram {}:{:?}", kypacket_seq, msg.payload_id);
-                            let index = self.prepare_pending_group(group_seq);
-                            let pending_group = &mut self.pending_groups[index];
-                            pending_group.insert_datagram(kypacket_seq, msg.oti, msg.payload_id, msg.data);
+                            self.pending_groups.insert_datagram(group_seq, kypacket_seq, msg.oti, msg.payload_id, msg.data);
                         }
                         None => return Ok(None), // No more data
                     }
@@ -706,7 +575,7 @@ impl ProtocolRecvDriver for UnreliableFecProtocolRecvDriver {
                 } => {}
             }
 
-            match self.take_next_packet() {
+            match self.pending_groups.take_next_packet(self.next_kypacket_seq) {
                 Action::None => {}
                 Action::Deadline(instant) => {
                     deadline = Some(instant);
@@ -799,6 +668,163 @@ impl ConfigPacket {
             packet
         } else {
             panic!("Attempting to consume a non-ready config packet");
+        }
+    }
+}
+
+#[derive(Debug)]
+struct PendingGroups {
+    pending_groups: Vec<PendingGroup>,
+}
+
+impl PendingGroups {
+    fn new() -> Self {
+        Self {
+            pending_groups: Vec::new(),
+        }
+    }
+
+    fn prepare_pending_group(&mut self, group_seq: u64) -> usize {
+        let index = self
+            .pending_groups
+            .binary_search_by_key(&group_seq, |pending_group| pending_group.group_seq);
+
+        match index {
+            Ok(index) => index,
+            Err(index) => {
+                let pending_group = PendingGroup::new(group_seq);
+                self.pending_groups.insert(index, pending_group);
+                index
+            }
+        }
+    }
+
+    fn insert_stream_packet(&mut self, group_seq: u64, kypacket_seq: u64, packet: AVPacket) {
+        let index = self.prepare_pending_group(group_seq);
+
+        let pending_group = &mut self.pending_groups[index];
+        assert!(pending_group.config_packet.is_none());
+        pending_group.config_packet = ConfigPacket::Ready(StreamPacket {
+            packet,
+            kypacket_seq,
+        });
+    }
+
+    fn insert_datagram(
+        &mut self,
+        group_seq: u64,
+        kypacket_seq: u64,
+        oti: raptorq::ObjectTransmissionInformation,
+        payload_id: raptorq::PayloadId,
+        data: Bytes,
+    ) {
+        let index = self.prepare_pending_group(group_seq);
+
+        let pending_group = &mut self.pending_groups[index];
+        pending_group.insert_datagram(kypacket_seq, oti, payload_id, data);
+    }
+
+    fn next_packet(&self, next_kypacket_seq: u64) -> NextPacket {
+        let mut cached_min_instant = None;
+
+        for (pending_group_index, pending_group) in self.pending_groups.iter().enumerate() {
+            // Ignore pending groups without config packet
+            if !pending_group.config_packet.is_none() {
+                if let ConfigPacket::Ready(packet) = &pending_group.config_packet {
+                    if packet.kypacket_seq == next_kypacket_seq {
+                        // The config packet is the next expected packet
+                        return NextPacket::Ready(PacketRef {
+                            pending_group_index,
+                            config_packet: true,
+                        });
+                    }
+                }
+
+                let datagrams = &pending_group.datagrams;
+                if !datagrams.is_empty() {
+                    let mut ready = false;
+                    if datagrams[0].kypacket_seq == next_kypacket_seq {
+                        ready = true;
+                    } else {
+                        // cached_min_instant is an Option<Option<Instant>>:
+                        //  - the first Option indicates if the value is cached
+                        //  - the second Option is there is a min instant at
+                        //    all (if there are no items at all, there is no min)
+                        let min_instant = if let Some(cached) = cached_min_instant {
+                            cached
+                        } else {
+                            let min_instant = self.min_instant();
+                            cached_min_instant = Some(min_instant);
+                            min_instant
+                        };
+                        if let Some(min_instant) = min_instant {
+                            let deadline =
+                                min_instant + UnreliableFecProtocolRecvDriver::MAX_BUFFERING;
+                            if deadline <= Instant::now() {
+                                ready = true;
+                            } else {
+                                return NextPacket::Deadline(deadline);
+                            }
+                        }
+                    }
+                    if ready {
+                        // Send either the datagram or the previous config packet if not sent yet
+                        return NextPacket::Ready(PacketRef {
+                            pending_group_index,
+                            config_packet: pending_group.config_packet.is_ready(),
+                        });
+                    }
+                }
+            }
+        }
+
+        NextPacket::None
+    }
+
+    fn min_instant(&self) -> Option<Instant> {
+        // Minimum of all datagrams instants across all pending groups
+        self.pending_groups
+            .iter()
+            .filter_map(|pending_group| {
+                pending_group
+                    .datagrams
+                    .iter()
+                    .map(|datagram| datagram.instant)
+                    .min()
+            })
+            .min()
+    }
+
+    fn take_next_packet(&mut self, next_kypacket_seq: u64) -> Action {
+        match self.next_packet(next_kypacket_seq) {
+            NextPacket::None => Action::None,
+            NextPacket::Deadline(instant) => Action::Deadline(instant),
+            NextPacket::Ready(packet_ref) => {
+                if packet_ref.pending_group_index > 0 {
+                    self.pending_groups.drain(..packet_ref.pending_group_index);
+                }
+
+                let pending_group = &mut self.pending_groups[0];
+
+                assert!(!pending_group.config_packet.is_none());
+
+                if packet_ref.config_packet {
+                    assert!(pending_group.config_packet.is_ready());
+                    let config_packet = pending_group.config_packet.consume();
+                    Action::Packet {
+                        kypacket_seq: config_packet.kypacket_seq,
+                        packet: config_packet.packet,
+                    }
+                } else {
+                    assert!(!pending_group.datagrams.is_empty());
+                    let datagram = pending_group.datagrams.remove(0);
+                    pending_group.drop_expired_segments(datagram.kypacket_seq);
+                    Action::Packet {
+                        kypacket_seq: datagram.kypacket_seq,
+                        packet: datagram.packet,
+                    }
+                }
+            }
         }
     }
 }
