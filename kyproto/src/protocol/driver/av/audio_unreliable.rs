@@ -1,4 +1,7 @@
-use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket, MediaPacketHeader};
+use crate::protocol::av::{
+    AVPacket, AVPacketHeader, CodecPacket, HolePacket, HolePacketHeader, MediaPacket,
+    MediaPacketHeader,
+};
 use crate::protocol::driver::av;
 use crate::protocol::driver::util::seq::Sequencer;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
@@ -272,6 +275,7 @@ impl AudioUnreliableProtocolRecvDriver {
         let mut pending_groups = PendingGroups::new();
         let mut next_kypacket_seq = 0u64;
         let mut deadline = None;
+        let mut frame_size = None;
 
         loop {
             tokio::select! {
@@ -280,6 +284,8 @@ impl AudioUnreliableProtocolRecvDriver {
                         Some(RecvMsg::Stream(msg)) => {
                             if let AVPacket::Codec(packet) = &msg.packet {
                                 debug!("===== SEND codec packet to client");
+                                frame_size = Some(packet.header.frame_size);
+                                assert!(frame_size.unwrap() > 0);
                                 tx_client.send(msg.packet).await?;
                                 continue;
                             }
@@ -328,7 +334,7 @@ impl AudioUnreliableProtocolRecvDriver {
                     kypacket_seq,
                     packet,
                 } => {
-                    debug!("===== SEND kypacket {kypacket_seq} to client");
+                    assert!(frame_size.is_some());
                     if kypacket_seq > next_kypacket_seq {
                         if kypacket_seq == next_kypacket_seq + 1 {
                             warn!("Missing packet {next_kypacket_seq}");
@@ -338,7 +344,22 @@ impl AudioUnreliableProtocolRecvDriver {
                                 kypacket_seq - 1
                             );
                         }
+
+                        let missing_packets = kypacket_seq - next_kypacket_seq;
+                        let frame_size = frame_size.expect("No frame_size set");
+                        let missing_audio_samples = missing_packets * frame_size as u64;
+                        let missing_audio_samples =
+                            std::cmp::min(missing_audio_samples, u32::MAX.into()) as u32;
+
+                        let hole = AVPacket::Hole(HolePacket {
+                            header: HolePacketHeader {
+                                missing_audio_samples,
+                            },
+                        });
+                        tx_client.send(hole).await?;
                     }
+
+                    debug!("===== SEND kypacket {kypacket_seq} to client");
                     next_kypacket_seq = kypacket_seq + 1;
                     tx_client.send(packet).await?;
                 }
