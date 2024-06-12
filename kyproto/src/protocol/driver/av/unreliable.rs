@@ -504,7 +504,7 @@ impl UnreliableProtocolRecvDriver {
                     if datagrams[0].kypacket_seq == self.next_kypacket_seq {
                         ready = true;
                     } else {
-                        // cached_min_instant is an Option<Option<Instant>:
+                        // cached_min_instant is an Option<Option<Instant>>:
                         //  - the first Option indicates if the value is cached
                         //  - the second Option is there is a min instant at
                         //    all (if there are no items at all, there is no min)
