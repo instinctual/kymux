@@ -48,6 +48,7 @@ pub enum VideoProtocol {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum AudioProtocol {
     Reliable,
+    Unreliable,
 }
 
 pub(crate) async fn start_video_protocol_send(
@@ -130,6 +131,12 @@ pub(crate) async fn start_audio_protocol_send(
                 driver::av::reliable::ReliableProtocolSendDriver::start(ky_channel).await?,
             ),
         },
+        AudioProtocol::Unreliable => ProtocolSend {
+            driver: Box::new(
+                driver::av::audio_unreliable::AudioUnreliableProtocolSendDriver::start(ky_channel)
+                    .await?,
+            ),
+        },
     };
 
     Ok(protocol)
@@ -143,6 +150,12 @@ pub(crate) async fn start_audio_protocol_recv(
         AudioProtocol::Reliable => ProtocolRecv {
             driver: Box::new(
                 driver::av::reliable::ReliableProtocolRecvDriver::start(ky_channel).await?,
+            ),
+        },
+        AudioProtocol::Unreliable => ProtocolRecv {
+            driver: Box::new(
+                driver::av::audio_unreliable::AudioUnreliableProtocolRecvDriver::start(ky_channel)
+                    .await?,
             ),
         },
     };

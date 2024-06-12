@@ -5,6 +5,7 @@ use bytes::BytesMut;
 use kynet::error::ReadExactError;
 use kynet::RecvStream;
 
+pub(crate) mod audio_unreliable;
 pub(crate) mod reliable;
 pub(crate) mod video_gopstream;
 pub(crate) mod video_unreliable;
