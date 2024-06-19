@@ -293,10 +293,14 @@ impl Connection {
         Ok(uri)
     }
 
-    pub async fn register_audio_endpoint(&self, id: Option<u16>) -> Result<AudioServerEndpoint> {
+    pub async fn register_audio_endpoint(
+        &self,
+        id: Option<u16>,
+        audio_protocol: AudioProtocol,
+    ) -> Result<AudioServerEndpoint> {
         let endpoint = self
             .connection
-            .register_audio_endpoint(id, AudioProtocol::Reliable)
+            .register_audio_endpoint(id, audio_protocol)
             .await?;
         Ok(endpoint)
     }
@@ -305,8 +309,9 @@ impl Connection {
     pub async fn register_audio_endpoint_with_ipc_forward(
         &self,
         id: Option<u16>,
+        audio_protocol: AudioProtocol,
     ) -> Result<(u16, String)> {
-        let endpoint = self.register_audio_endpoint(id).await?;
+        let endpoint = self.register_audio_endpoint(id, audio_protocol).await?;
         let id = endpoint.id();
 
         let forwarder = self.ipc.kycom.register(endpoint)?;
@@ -317,16 +322,22 @@ impl Connection {
         Ok((id, uri))
     }
 
-    pub fn connect_audio_endpoint(&self, id: u16) -> Result<AudioClientEndpoint> {
-        let endpoint = self
-            .connection
-            .connect_audio_endpoint(id, AudioProtocol::Reliable)?;
+    pub fn connect_audio_endpoint(
+        &self,
+        id: u16,
+        audio_protocol: AudioProtocol,
+    ) -> Result<AudioClientEndpoint> {
+        let endpoint = self.connection.connect_audio_endpoint(id, audio_protocol)?;
         Ok(endpoint)
     }
 
     #[cfg(feature = "ipc")]
-    pub fn connect_audio_endpoint_with_ipc_forward(&self, id: u16) -> Result<String> {
-        let endpoint = self.connect_audio_endpoint(id)?;
+    pub fn connect_audio_endpoint_with_ipc_forward(
+        &self,
+        id: u16,
+        audio_protocol: AudioProtocol,
+    ) -> Result<String> {
+        let endpoint = self.connect_audio_endpoint(id, audio_protocol)?;
 
         let forwarder = self.ipc.kycom.register(endpoint)?;
         let uri = forwarder.addr().url();
