@@ -93,7 +93,7 @@ async fn main() {
 
     let client_config = kymux::ClientConfig::Quic {
         addr: client_addr,
-        roots: keys.certs_store,
+        roots: Some(keys.certs_store),
         server_name: SERVER_NAME.into(),
     };
 

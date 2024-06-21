@@ -37,7 +37,7 @@ pub enum ClientConfig {
     #[cfg(feature = "backend-quinn")]
     Quic {
         addr: std::net::SocketAddr,
-        roots: rustls::RootCertStore,
+        roots: Option<rustls::RootCertStore>,
         server_name: String,
     },
     #[cfg(feature = "backend-webtransport-js")]
@@ -198,7 +198,7 @@ impl Connection {
                 kyproto::KyProto::quinn_connect(
                     addr,
                     &server_name,
-                    roots.into(),
+                    roots.map(|roots| roots.into()),
                     &kyproto::quinn::QuinnClientOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
                         ..Default::default()

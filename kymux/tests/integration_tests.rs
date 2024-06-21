@@ -74,7 +74,7 @@ async fn create_connection() -> (kymux::Connection, kymux::Connection) {
     let client_connect = async move {
         let config = kymux::ClientConfig::Quic {
             addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), PORT),
-            roots: keys.certs_store,
+            roots: Some(keys.certs_store),
             server_name: SERVER_NAME.into(),
         };
 
