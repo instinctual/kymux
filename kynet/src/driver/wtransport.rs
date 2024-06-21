@@ -101,9 +101,21 @@ impl WTransportConnectionDriver {
 
     pub async fn connect(
         url: &str,
-        certs: RootCertStore,
+        certs: Option<RootCertStore>,
         options: &WTransportClientOptions,
     ) -> Result<Connection, ConnectionError> {
+        let certs = if let Some(certs) = certs {
+            certs
+        } else {
+            let mut cert_store = RootCertStore::empty();
+
+            for cert in rustls_native_certs::load_native_certs()? {
+                cert_store.add(&Certificate::new(cert.as_ref().into()))?;
+            }
+
+            cert_store
+        };
+
         let mut tls_config = rustls::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(certs.0)

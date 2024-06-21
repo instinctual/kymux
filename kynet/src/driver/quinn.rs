@@ -105,10 +105,14 @@ impl QuinnConnectionDriver {
     pub async fn connect(
         addr: SocketAddr,
         server_name: &str,
-        certs: RootCertStore,
+        certs: Option<RootCertStore>,
         options: &QuinnClientOptions,
     ) -> Result<Connection, ConnectionError> {
-        let mut config = quinn::ClientConfig::with_root_certificates(certs.0);
+        let mut config = if let Some(certs) = certs {
+            quinn::ClientConfig::with_root_certificates(certs.0)
+        } else {
+            quinn::ClientConfig::with_native_roots()
+        };
 
         let mut transport_config = quinn::TransportConfig::default();
         transport_config.max_idle_timeout(

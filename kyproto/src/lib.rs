@@ -263,7 +263,7 @@ impl KyProto {
     pub async fn quinn_connect(
         addr: SocketAddr,
         server_name: &str,
-        certs: cert::RootCertStore,
+        certs: Option<cert::RootCertStore>,
         options: &quinn::QuinnClientOptions,
     ) -> Result<Self, ConnectionError> {
         let conn = kynet::Connection::quinn_connect(addr, server_name, certs, options).await?;
@@ -302,7 +302,7 @@ impl KyProto {
     #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
     pub async fn wtransport_connect(
         url: &str,
-        certs: cert::RootCertStore,
+        certs: Option<cert::RootCertStore>,
         options: &wtransport::WTransportClientOptions,
     ) -> Result<Self, ConnectionError> {
         let conn = kynet::Connection::wtransport_connect(url, certs, options).await?;

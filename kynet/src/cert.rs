@@ -128,3 +128,9 @@ impl From<rustls::Error> for ConnectionError {
         Self(value.to_string())
     }
 }
+
+impl From<CertError> for ConnectionError {
+    fn from(value: CertError) -> Self {
+        Self(value.0)
+    }
+}
