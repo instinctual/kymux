@@ -16,6 +16,9 @@ pub use kyproto::{
 const KYMUX_LOCAL_CLIENTS_PORT: u16 = 9090;
 
 #[allow(dead_code)]
+const KYMUX_LOCAL_CLIENTS_RANGE: u16 = 10;
+
+#[allow(dead_code)]
 const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
 pub enum ServerConfig {
@@ -161,12 +164,29 @@ pub struct Connection {
 }
 
 impl Connection {
+    #[cfg(feature = "ipc")]
+    async fn create_ipc(local_clients_port: u16) -> Result<ipc::IpcHandler> {
+        for i in 0..KYMUX_LOCAL_CLIENTS_RANGE {
+            let port = local_clients_port + i;
+
+            let ret = ipc::IpcHandler::new(port).await;
+            match ret {
+                Ok(ipc) => return Ok(ipc),
+                Err(err) => {
+                    log::warn!("Fail to set IpcHandler on port {port}: {err:?}");
+                }
+            }
+        }
+
+        Err(Error::IpcNoPortAvailable)
+    }
+
     #[allow(unused_variables)]
     async fn new(connection: kyproto::KyProto, params: ConnectionParam) -> Result<Self> {
         Ok(Self {
             connection,
             #[cfg(feature = "ipc")]
-            ipc: ipc::IpcHandler::new(params.local_clients_port).await?,
+            ipc: Self::create_ipc(params.local_clients_port).await?,
         })
     }
 

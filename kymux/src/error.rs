@@ -35,6 +35,8 @@ pub enum Error {
     EndpointCreateFailed { source: std::io::Error },
     #[error("Thread has panicked")]
     ThreadPanicked,
+    #[error("No port available for local IPC")]
+    IpcNoPortAvailable,
 }
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
