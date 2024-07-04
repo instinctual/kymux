@@ -162,7 +162,7 @@ pub(crate) struct AudioUnreliableProtocolRecvDriver {
 }
 
 impl AudioUnreliableProtocolRecvDriver {
-    const MAX_BUFFERING: Duration = Duration::from_millis(50);
+    const MAX_BUFFERING: Duration = Duration::from_millis(10);
 
     pub(crate) async fn start(mut ky_channel: KyChannel) -> Result<Self, ProtocolError> {
         let stream = ky_channel.accept_uni().await?;
