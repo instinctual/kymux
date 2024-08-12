@@ -49,6 +49,7 @@ pub enum VideoProtocol {
 pub enum AudioProtocol {
     Reliable,
     Unreliable,
+    UnreliableFec,
 }
 
 pub(crate) async fn start_video_protocol_send(
@@ -137,6 +138,14 @@ pub(crate) async fn start_audio_protocol_send(
                     .await?,
             ),
         },
+        AudioProtocol::UnreliableFec => ProtocolSend {
+            driver: Box::new(
+                driver::av::audio_unreliable_fec::AudioUnreliableFecProtocolSendDriver::start(
+                    ky_channel,
+                )
+                .await?,
+            ),
+        },
     };
 
     Ok(protocol)
@@ -156,6 +165,14 @@ pub(crate) async fn start_audio_protocol_recv(
             driver: Box::new(
                 driver::av::audio_unreliable::AudioUnreliableProtocolRecvDriver::start(ky_channel)
                     .await?,
+            ),
+        },
+        AudioProtocol::UnreliableFec => ProtocolRecv {
+            driver: Box::new(
+                driver::av::audio_unreliable_fec::AudioUnreliableFecProtocolRecvDriver::start(
+                    ky_channel,
+                )
+                .await?,
             ),
         },
     };
