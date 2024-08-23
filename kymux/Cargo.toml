@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.78"
 log = "0.4.21"
 rustls = { version = "0.23.13", optional = true }
 thiserror = "1.0.58"
@@ -13,7 +14,6 @@ kycom = { path = "../kyproto/kycom", optional = true }
 kyproto = { path = "../kyproto/kyproto", optional = true }
 
 [dev-dependencies]
-async-trait = "0.1.78"
 byteorder = "1.5.0"
 bytes = "1.5.0"
 env_logger = "0.11.3"

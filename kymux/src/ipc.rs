@@ -2,11 +2,16 @@ use std::mem;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
+use async_trait::async_trait;
+use kyproto::{
+    AudioClientEndpoint, AudioServerEndpoint, InputEndpoint, VideoClientEndpoint,
+    VideoServerEndpoint,
+};
 use log::info;
 use tokio::sync;
 use tokio::task::JoinHandle;
 
-use kycom::ForwarderProtocol;
+use kycom::Forwarder;
 use log::{debug, warn};
 
 use crate::Result;
@@ -86,5 +91,57 @@ impl IpcHandler {
         });
 
         Ok(())
+    }
+}
+
+#[async_trait]
+pub trait ForwarderProtocol {
+    const NAME: &'static str;
+
+    async fn forward(self) -> std::io::Result<()>;
+}
+
+#[async_trait]
+impl ForwarderProtocol for Forwarder<VideoClientEndpoint> {
+    const NAME: &'static str = "VideoClientEndpoint";
+
+    async fn forward(self) -> std::io::Result<()> {
+        self.forward().await
+    }
+}
+
+#[async_trait]
+impl ForwarderProtocol for Forwarder<VideoServerEndpoint> {
+    const NAME: &'static str = "VideoServerEndpoint";
+
+    async fn forward(self) -> std::io::Result<()> {
+        self.forward().await
+    }
+}
+
+#[async_trait]
+impl ForwarderProtocol for Forwarder<AudioClientEndpoint> {
+    const NAME: &'static str = "AudioClientEndpoint";
+
+    async fn forward(self) -> std::io::Result<()> {
+        self.forward().await
+    }
+}
+
+#[async_trait]
+impl ForwarderProtocol for Forwarder<AudioServerEndpoint> {
+    const NAME: &'static str = "AudioServerEndpoint";
+
+    async fn forward(self) -> std::io::Result<()> {
+        self.forward().await
+    }
+}
+
+#[async_trait]
+impl ForwarderProtocol for Forwarder<InputEndpoint> {
+    const NAME: &'static str = "InputEndpoint";
+
+    async fn forward(self) -> std::io::Result<()> {
+        self.forward().await
     }
 }
