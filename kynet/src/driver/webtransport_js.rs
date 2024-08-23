@@ -24,7 +24,7 @@ impl From<web_sys::WebTransport> for Connection {
 pub struct WebTransportJSOptions {
     pub congestion_control: WebTransportJSCongestionControl,
     pub require_unreliable: bool,
-    pub server_certificate_hashes: Vec<WebTransportJSHash>,
+    pub server_certificate_hashes: Option<Vec<WebTransportJSHash>>,
 }
 
 impl WebTransportJSOptions {
@@ -33,12 +33,14 @@ impl WebTransportJSOptions {
         options.require_unreliable(self.require_unreliable);
         options.congestion_control(self.congestion_control.to_web_sys());
 
-        let hashes = js_sys::Array::new();
-        for hash in &self.server_certificate_hashes {
-            hashes.push(&hash.to_web_sys());
-        }
+        if let Some(server_certificate_hashes) = &self.server_certificate_hashes {
+            let hashes = js_sys::Array::new();
+            for hash in server_certificate_hashes {
+                hashes.push(&hash.to_web_sys());
+            }
 
-        options.server_certificate_hashes(&hashes);
+            options.server_certificate_hashes(&hashes);
+        }
 
         options
     }
