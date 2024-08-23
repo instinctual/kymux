@@ -33,6 +33,11 @@ pub enum ServerConfig {
     },
 }
 
+pub struct WebTransportCertificateHash {
+    pub hash_algorithm: String,
+    pub hash: String,
+}
+
 pub enum ClientConfig {
     #[cfg(feature = "backend-quinn")]
     Quic {
@@ -43,8 +48,7 @@ pub enum ClientConfig {
     #[cfg(feature = "backend-webtransport-js")]
     WebTransport {
         url: String,
-        certificate_hash_algorithm: String,
-        certificate_hash: String,
+        certificate_hash: Option<WebTransportCertificateHash>,
     },
 }
 
@@ -209,20 +213,25 @@ impl Connection {
             #[cfg(feature = "backend-webtransport-js")]
             ClientConfig::WebTransport {
                 url,
-                certificate_hash_algorithm,
                 certificate_hash,
             } => {
                 use kyproto::webtransport_js::{
                     WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
                 };
 
+                let server_certificate_hashes = if let Some(certificate_hash) = certificate_hash {
+                    Some(vec![WebTransportJSHash::new_from_hex(
+                        certificate_hash.hash_algorithm,
+                        &certificate_hash.hash,
+                    )?])
+                } else {
+                    None
+                };
+
                 let options = WebTransportJSOptions {
                     congestion_control: WebTransportJSCongestionControl::LowLatency,
                     require_unreliable: true,
-                    server_certificate_hashes: vec![WebTransportJSHash::new_from_hex(
-                        certificate_hash_algorithm,
-                        &certificate_hash,
-                    )?],
+                    server_certificate_hashes,
                 };
 
                 kyproto::KyProto::webtransport_js_connect(&url, &options).await?
