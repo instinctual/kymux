@@ -273,21 +273,21 @@ impl KyProto {
     #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
     pub fn quinn_start_server_on_addr(
         addr: SocketAddr,
-        cert: cert::Certificate,
+        cert_chain: Vec<cert::Certificate>,
         key: cert::PrivateKey,
         options: &quinn::QuinnServerOptions,
     ) -> Result<quinn::QuinnServer, ConnectionError> {
-        quinn::QuinnServer::start_on_addr(addr, cert, key, options)
+        quinn::QuinnServer::start_on_addr(addr, cert_chain, key, options)
     }
 
     #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
     pub fn quinn_start_server(
         port: u16,
-        cert: cert::Certificate,
+        cert_chain: Vec<cert::Certificate>,
         key: cert::PrivateKey,
         options: &quinn::QuinnServerOptions,
     ) -> Result<quinn::QuinnServer, ConnectionError> {
-        quinn::QuinnServer::start(port, cert, key, options)
+        quinn::QuinnServer::start(port, cert_chain, key, options)
     }
 
     #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
@@ -312,17 +312,17 @@ impl KyProto {
     #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
     pub fn wtransport_start_server_on_addr(
         addr: SocketAddr,
-        cert: cert::Certificate,
+        cert_chain: Vec<cert::Certificate>,
         key: cert::PrivateKey,
         options: &wtransport::WTransportServerOptions,
     ) -> Result<wtransport::WTransportServer, ConnectionError> {
-        wtransport::WTransportServer::start_on_addr(addr, cert, key, options)
+        wtransport::WTransportServer::start_on_addr(addr, cert_chain, key, options)
     }
 
     #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
     pub fn wtransport_start_server(
         port: u16,
-        cert: cert::Certificate,
+        cert: Vec<cert::Certificate>,
         key: cert::PrivateKey,
         options: &wtransport::WTransportServerOptions,
     ) -> Result<wtransport::WTransportServer, ConnectionError> {

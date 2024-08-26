@@ -31,11 +31,12 @@ pub struct WTransportServer {
 impl WTransportServer {
     pub fn start_on_addr(
         addr: SocketAddr,
-        cert: Certificate,
+        cert_chain: Vec<Certificate>,
         key: PrivateKey,
         options: &WTransportServerOptions,
     ) -> Result<Self, ConnectionError> {
-        let cert_chain = vec![cert.0];
+        let cert_chain = cert_chain.into_iter().map(|c| c.0).collect();
+
         let mut tls_config = rustls::ServerConfig::builder()
             .with_safe_defaults()
             .with_no_client_auth()
@@ -55,12 +56,12 @@ impl WTransportServer {
 
     pub fn start(
         port: u16,
-        cert: Certificate,
+        cert_chain: Vec<Certificate>,
         key: PrivateKey,
         options: &WTransportServerOptions,
     ) -> Result<Self, ConnectionError> {
         let addr = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port);
-        Self::start_on_addr(addr, cert, key, options)
+        Self::start_on_addr(addr, cert_chain, key, options)
     }
 
     pub async fn accept(&self) -> Result<Connection, ConnectionError> {

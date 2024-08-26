@@ -30,11 +30,11 @@ pub struct QuinnServer {
 impl QuinnServer {
     pub fn start_on_addr(
         addr: SocketAddr,
-        cert: Certificate,
+        cert_chain: Vec<Certificate>,
         key: PrivateKey,
         options: &QuinnServerOptions,
     ) -> Result<Self, ConnectionError> {
-        let cert_chain = vec![cert.0];
+        let cert_chain = cert_chain.into_iter().map(|c| c.0).collect();
         let mut config = quinn::ServerConfig::with_single_cert(cert_chain, key.0)?;
 
         let mut transport_config = quinn::TransportConfig::default();
@@ -54,12 +54,12 @@ impl QuinnServer {
 
     pub fn start(
         port: u16,
-        cert: Certificate,
+        cert_chain: Vec<Certificate>,
         key: PrivateKey,
         options: &QuinnServerOptions,
     ) -> Result<Self, ConnectionError> {
         let addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port);
-        Self::start_on_addr(addr, cert, key, options)
+        Self::start_on_addr(addr, cert_chain, key, options)
     }
 
     pub async fn accept(&self) -> Result<Connection, ConnectionError> {

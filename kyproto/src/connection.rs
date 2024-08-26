@@ -18,21 +18,21 @@ pub mod quinn {
     impl QuinnServer {
         pub fn start_on_addr(
             addr: SocketAddr,
-            cert: Certificate,
+            cert_chain: Vec<Certificate>,
             key: PrivateKey,
             options: &QuinnServerOptions,
         ) -> Result<Self, ConnectionError> {
-            let server = kynet::quinn::QuinnServer::start_on_addr(addr, cert, key, options)?;
+            let server = kynet::quinn::QuinnServer::start_on_addr(addr, cert_chain, key, options)?;
             Ok(Self(server))
         }
 
         pub fn start(
             port: u16,
-            cert: Certificate,
+            cert_chain: Vec<Certificate>,
             key: PrivateKey,
             options: &QuinnServerOptions,
         ) -> Result<Self, ConnectionError> {
-            let server = kynet::quinn::QuinnServer::start(port, cert, key, options)?;
+            let server = kynet::quinn::QuinnServer::start(port, cert_chain, key, options)?;
             Ok(Self(server))
         }
 
@@ -72,22 +72,23 @@ pub mod wtransport {
     impl WTransportServer {
         pub fn start_on_addr(
             addr: SocketAddr,
-            cert: Certificate,
+            cert_chain: Vec<Certificate>,
             key: PrivateKey,
             options: &WTransportServerOptions,
         ) -> Result<Self, ConnectionError> {
             let server =
-                kynet::wtransport::WTransportServer::start_on_addr(addr, cert, key, options)?;
+                kynet::wtransport::WTransportServer::start_on_addr(addr, cert_chain, key, options)?;
             Ok(Self(server))
         }
 
         pub fn start(
             port: u16,
-            cert: Certificate,
+            cert_chain: Vec<Certificate>,
             key: PrivateKey,
             options: &WTransportServerOptions,
         ) -> Result<Self, ConnectionError> {
-            let server = kynet::wtransport::WTransportServer::start(port, cert, key, options)?;
+            let server =
+                kynet::wtransport::WTransportServer::start(port, cert_chain, key, options)?;
             Ok(Self(server))
         }
 
