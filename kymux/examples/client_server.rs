@@ -77,7 +77,7 @@ async fn main() {
 
     let server_config = kymux::ServerConfig::Quic {
         addr: server_addr,
-        certificate: keys.cert_chain[0].clone(),
+        cert_chain: vec![keys.cert_chain[0].clone()],
         private_key: keys.private_key,
     };
 

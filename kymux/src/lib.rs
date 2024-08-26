@@ -22,13 +22,13 @@ pub enum ServerConfig {
     #[cfg(feature = "backend-quinn")]
     Quic {
         addr: std::net::SocketAddr,
-        certificate: rustls::Certificate,
+        cert_chain: Vec<rustls::Certificate>,
         private_key: rustls::PrivateKey,
     },
     #[cfg(feature = "backend-wtransport")]
     Wtransport {
         addr: std::net::SocketAddr,
-        certificate: Vec<u8>,
+        cert_chain: Vec<Vec<u8>>,
         private_key: Vec<u8>,
     },
 }
@@ -70,12 +70,12 @@ impl Server {
             #[cfg(feature = "backend-quinn")]
             ServerConfig::Quic {
                 addr,
-                certificate,
+                cert_chain,
                 private_key,
             } => {
                 let endpoint = kyproto::KyProto::quinn_start_server_on_addr(
                     addr,
-                    certificate.into(),
+                    cert_chain.into_iter().map(|c| c.into()).collect(),
                     private_key.into(),
                     &kyproto::quinn::QuinnServerOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
@@ -88,12 +88,15 @@ impl Server {
             #[cfg(feature = "backend-wtransport")]
             ServerConfig::Wtransport {
                 addr,
-                certificate,
+                cert_chain,
                 private_key,
             } => {
                 let endpoint = kyproto::KyProto::wtransport_start_server_on_addr(
                     addr,
-                    kyproto::cert::Certificate::new(certificate),
+                    cert_chain
+                        .into_iter()
+                        .map(kyproto::cert::Certificate::new)
+                        .collect(),
                     kyproto::cert::PrivateKey::new(private_key),
                     &kyproto::wtransport::WTransportServerOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
