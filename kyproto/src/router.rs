@@ -10,7 +10,7 @@ use std::future::Future;
 use bytes::{BufMut, Bytes, BytesMut};
 use kynet::error::*;
 use kynet::util::*;
-use kynet::{Connection, RecvStream, SendStream};
+use kynet::{Connection, ConnectionStats, RecvStream, SendStream};
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use thiserror::Error;
@@ -329,6 +329,10 @@ impl KyChannelSend {
     pub fn write_datagram_header(&self, buf: &mut BytesMut) {
         Self::write_datagram_header_(self.endpoint_id, buf);
     }
+
+    pub async fn connection_stats(&self) -> ConnectionStats {
+        KyChannel::connection_stats_(&self.conn).await
+    }
 }
 
 impl KyChannelRecv {
@@ -352,6 +356,10 @@ impl KyChannelRecv {
 
     pub async fn recv_datagram(&mut self) -> Result<Bytes, RouterError> {
         Self::recv_(&mut self.rx_datagrams).await
+    }
+
+    pub async fn connection_stats(&self) -> ConnectionStats {
+        KyChannel::connection_stats_(&self.conn).await
     }
 }
 
@@ -411,6 +419,14 @@ impl KyChannel {
 
     pub fn write_datagram_header(&self, buf: &mut BytesMut) {
         KyChannelSend::write_datagram_header_(self.endpoint_id, buf);
+    }
+
+    pub async fn connection_stats_(conn: &Connection) -> ConnectionStats {
+        conn.stats().await
+    }
+
+    pub async fn connection_stats(&self) -> ConnectionStats {
+        Self::connection_stats_(&self.conn).await
     }
 
     pub fn into_split(self) -> (KyChannelRecv, KyChannelSend) {
