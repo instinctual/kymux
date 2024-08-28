@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use crate::error::*;
 use crate::{
     Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
