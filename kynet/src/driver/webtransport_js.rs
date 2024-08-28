@@ -27,9 +27,9 @@ pub struct WebTransportJSOptions {
 
 impl WebTransportJSOptions {
     fn to_web_sys(&self) -> web_sys::WebTransportOptions {
-        let mut options = web_sys::WebTransportOptions::new();
-        options.require_unreliable(self.require_unreliable);
-        options.congestion_control(self.congestion_control.to_web_sys());
+        let options = web_sys::WebTransportOptions::new();
+        options.set_require_unreliable(self.require_unreliable);
+        options.set_congestion_control(self.congestion_control.to_web_sys());
 
         if let Some(server_certificate_hashes) = &self.server_certificate_hashes {
             let hashes = js_sys::Array::new();
@@ -37,7 +37,7 @@ impl WebTransportJSOptions {
                 hashes.push(&hash.to_web_sys());
             }
 
-            options.server_certificate_hashes(&hashes);
+            options.set_server_certificate_hashes(&hashes);
         }
 
         options
@@ -106,9 +106,9 @@ impl WebTransportJSHash {
     fn to_web_sys(&self) -> web_sys::WebTransportHash {
         let array = js_sys::Uint8Array::from(self.value.as_ref());
 
-        let mut obj = web_sys::WebTransportHash::new();
-        obj.algorithm(&self.algorithm);
-        obj.value(&array);
+        let obj = web_sys::WebTransportHash::new();
+        obj.set_algorithm(&self.algorithm);
+        obj.set_value(&array);
         obj
     }
 }
@@ -292,11 +292,10 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
     }
 
     fn close(&self, error_code: u32, reason: &str) {
-        self.web_transport.close_with_close_info(
-            web_sys::WebTransportCloseInfo::new()
-                .close_code(error_code)
-                .reason(reason),
-        );
+        let close_info = web_sys::WebTransportCloseInfo::new();
+        close_info.set_close_code(error_code);
+        close_info.set_reason(reason);
+        self.web_transport.close_with_close_info(&close_info);
     }
 
     fn max_datagram_size(&self) -> Option<usize> {
@@ -353,11 +352,10 @@ struct WebTransportJSRecvStreamDriver {
 
 impl WebTransportJSRecvStreamDriver {
     fn new(recv: web_sys::ReadableStream) -> Self {
+        let options = web_sys::ReadableStreamGetReaderOptions::new();
+        options.set_mode(web_sys::ReadableStreamReaderMode::Byob);
         let reader = recv
-            .get_reader_with_options(
-                web_sys::ReadableStreamGetReaderOptions::new()
-                    .mode(web_sys::ReadableStreamReaderMode::Byob),
-            )
+            .get_reader_with_options(&options)
             .dyn_into::<web_sys::ReadableStreamByobReader>()
             .expect("Invalid readable stream");
         Self { reader }
