@@ -85,8 +85,8 @@ impl WTransportServer {
 
 #[derive(Default)]
 pub struct WTransportClientOptions {
-    max_idle_timeout: Option<Duration>,
-    keep_alive_interval: Option<Duration>,
+    pub max_idle_timeout: Option<Duration>,
+    pub keep_alive_interval: Option<Duration>,
 }
 
 #[derive(Debug)]
