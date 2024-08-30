@@ -28,8 +28,8 @@ pub enum ServerConfig {
     #[cfg(feature = "backend-wtransport")]
     Wtransport {
         addr: std::net::SocketAddr,
-        cert_chain: Vec<Vec<u8>>,
-        private_key: Vec<u8>,
+        cert_chain: Vec<rustls::Certificate>,
+        private_key: rustls::PrivateKey,
     },
 }
 
@@ -93,11 +93,8 @@ impl Server {
             } => {
                 let endpoint = kyproto::KyProto::wtransport_start_server_on_addr(
                     addr,
-                    cert_chain
-                        .into_iter()
-                        .map(kyproto::cert::Certificate::new)
-                        .collect(),
-                    kyproto::cert::PrivateKey::new(private_key),
+                    cert_chain.into_iter().map(|c| c.into()).collect(),
+                    private_key.into(),
                     &kyproto::wtransport::WTransportServerOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
                         ..Default::default()
