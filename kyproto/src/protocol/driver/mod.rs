@@ -3,38 +3,23 @@ use crate::router;
 
 use async_trait::async_trait;
 use kynet::error::*;
+use kynet::util::*;
 
 pub(crate) mod av;
 pub(crate) mod input;
 pub(crate) mod util;
 
-#[cfg(target_family = "wasm")]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
-pub(crate) trait ProtocolSendDriver {
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+pub(crate) trait ProtocolSendDriver: KySend {
     type Packet;
 
     async fn send(&mut self, packet: Self::Packet) -> Result<(), ProtocolError>;
 }
 
-#[cfg(not(target_family = "wasm"))]
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub(crate) trait ProtocolSendDriver: Send {
-    type Packet;
-
-    async fn send(&mut self, packet: Self::Packet) -> Result<(), ProtocolError>;
-}
-
-#[cfg(target_family = "wasm")]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
-pub(crate) trait ProtocolRecvDriver {
-    type Packet;
-
-    async fn recv(&mut self) -> Result<Option<Self::Packet>, ProtocolError>;
-}
-
-#[cfg(not(target_family = "wasm"))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub(crate) trait ProtocolRecvDriver: Send {
+pub(crate) trait ProtocolRecvDriver: KySend {
     type Packet;
 
     async fn recv(&mut self) -> Result<Option<Self::Packet>, ProtocolError>;

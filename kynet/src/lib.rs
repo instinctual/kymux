@@ -1,5 +1,6 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
+use crate::util::*;
 
 #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
 use crate::driver::quinn::QuinnConnectionDriver;
@@ -11,11 +12,6 @@ use crate::driver::webtransport_js::WebTransportJSConnectionDriver;
 use crate::driver::wtransport::WTransportConnectionDriver;
 
 use std::fmt::Debug;
-
-#[cfg(target_family = "wasm")]
-use std::rc::Rc;
-#[cfg(not(target_family = "wasm"))]
-use std::sync::Arc;
 
 #[cfg(all(
     any(feature = "kynet-quinn", feature = "kynet-wtransport"),
@@ -56,24 +52,13 @@ pub mod util;
 
 #[derive(Debug, Clone)]
 pub struct Connection {
-    #[cfg(not(target_family = "wasm"))]
-    driver: Arc<dyn ConnectionDriver + Sync + Send>,
-    #[cfg(target_family = "wasm")]
-    driver: Rc<dyn ConnectionDriver>,
+    driver: KyArc<dyn ConnectionDriver>,
 }
 
 impl Connection {
-    #[cfg(not(target_family = "wasm"))]
-    pub fn new<T: ConnectionDriver + Sync + Send + 'static>(driver: T) -> Self {
-        Self {
-            driver: Arc::new(driver),
-        }
-    }
-
-    #[cfg(target_family = "wasm")]
     pub fn new<T: ConnectionDriver + 'static>(driver: T) -> Self {
         Self {
-            driver: Rc::new(driver),
+            driver: KyArc::new(driver),
         }
     }
 

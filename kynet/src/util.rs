@@ -52,3 +52,30 @@ impl<T: ?Sized> DerefMut for KyMutexGuard<'_, T> {
         self.0.deref_mut()
     }
 }
+
+// KySend is Send on non-wasm platforms
+// KySync is Sync on non-wasm platforms
+
+#[cfg(not(target_family = "wasm"))]
+pub trait KySend: Send {}
+
+#[cfg(not(target_family = "wasm"))]
+pub trait KySync: Sync {}
+
+#[cfg(not(target_family = "wasm"))]
+impl<T: Send> KySend for T {}
+
+#[cfg(not(target_family = "wasm"))]
+impl<T: Sync> KySync for T {}
+
+#[cfg(target_family = "wasm")]
+pub trait KySend {}
+
+#[cfg(target_family = "wasm")]
+pub trait KySync {}
+
+#[cfg(target_family = "wasm")]
+impl<T> KySend for T {}
+
+#[cfg(target_family = "wasm")]
+impl<T> KySync for T {}
