@@ -25,7 +25,6 @@ mod protocol;
 mod router;
 pub mod runtime;
 mod task;
-mod util;
 
 #[cfg(all(
     any(feature = "kynet-quinn", feature = "kynet-wtransport"),

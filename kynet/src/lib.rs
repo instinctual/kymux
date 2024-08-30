@@ -52,6 +52,7 @@ pub mod cert;
 
 mod driver;
 pub mod error;
+pub mod util;
 
 #[derive(Debug, Clone)]
 pub struct Connection {

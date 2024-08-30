@@ -2,7 +2,6 @@
 
 use crate::runtime;
 use crate::task::Task;
-use crate::util::{KyArc, KyMutex};
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -10,6 +9,7 @@ use std::future::Future;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use kynet::error::*;
+use kynet::util::*;
 use kynet::{Connection, RecvStream, SendStream};
 #[allow(unused)]
 use log::{debug, error, info, warn};
