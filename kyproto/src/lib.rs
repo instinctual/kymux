@@ -3,7 +3,6 @@ compile_error!("No feature selected, pass either --features=js or --features=tok
 
 use std::sync::atomic::{AtomicU16, Ordering};
 
-use clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 use control::{Control, ReadyNotifier};
 use error::*;
 use router::{KyChannel, Router};
@@ -11,6 +10,7 @@ use router::{KyChannel, Router};
 use async_trait::async_trait;
 use kynet::Connection;
 
+use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 pub use protocol::{
     AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, HolePacket,
     HolePacketHeader, InputPacket, MediaPacket, MediaPacketHeader, ProtocolRecv, ProtocolSend,
@@ -19,7 +19,6 @@ pub use protocol::{
 
 pub use kynet::init_crypto;
 
-mod clock_sync;
 mod connection;
 mod control;
 pub mod error;

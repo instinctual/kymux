@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 mod av;
+pub(crate) mod clock_sync;
 pub(crate) mod driver;
 mod input;
 
