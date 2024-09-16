@@ -6,6 +6,7 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, Bytes, BytesMut};
 use log::info;
 use rand::Rng;
+use rustls::pki_types;
 use sha1::{Digest, Sha1};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -24,34 +25,30 @@ enum StreamType {
     Input,
 }
 
-#[derive(Clone)]
 struct TlsKey {
-    cert_chain: Vec<rustls::Certificate>,
-    private_key: rustls::PrivateKey,
+    cert_chain: Vec<pki_types::CertificateDer<'static>>,
+    private_key: pki_types::PrivateKeyDer<'static>,
     certs_store: rustls::RootCertStore,
 }
 
 fn gen_keys(server_name: &str) -> TlsKey {
-    let names = vec![server_name.into()];
+    let names: Vec<String> = vec![server_name.into()];
 
     // rcgen: Generate Cert + Key
     let (cert_der, private_key) = {
         let cert = rcgen::generate_simple_self_signed(names).unwrap();
-        (
-            cert.serialize_der().unwrap(),
-            cert.serialize_private_key_der(),
-        )
+
+        let cert_der = cert.cert.der().clone();
+        let private_key = pki_types::PrivateKeyDer::Pkcs8(cert.key_pair.serialize_der().into());
+
+        (cert_der, private_key)
     };
 
-    // rustls: Load Cert + key
-    let cert = rustls::Certificate(cert_der);
-    let private_key = rustls::PrivateKey(private_key);
-
     let mut certs_store = rustls::RootCertStore::empty();
-    certs_store.add(&cert).unwrap();
+    certs_store.add(cert_der.clone()).unwrap();
 
     TlsKey {
-        cert_chain: vec![cert],
+        cert_chain: vec![cert_der],
         private_key,
         certs_store,
     }
@@ -310,6 +307,11 @@ async fn stress_test() {
         .format_timestamp_millis()
         .is_test(true)
         .init();
+
+    // Initialize rustls crypto
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .unwrap();
 
     let (mut server, mut client) = create_connection().await;
     info!("QUIC connection ready");

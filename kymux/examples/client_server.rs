@@ -1,16 +1,16 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
+use rustls::pki_types;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 const KYMUX_PORT: u16 = 9090;
 const SERVER_NAME: &str = "kymux_example";
 
-#[derive(Clone)]
 struct TlsKey {
-    cert_chain: Vec<rustls::Certificate>,
-    private_key: rustls::PrivateKey,
+    cert_chain: Vec<pki_types::CertificateDer<'static>>,
+    private_key: pki_types::PrivateKeyDer<'static>,
     certs_store: rustls::RootCertStore,
 }
 
@@ -20,21 +20,18 @@ fn gen_keys(server_name: &str) -> TlsKey {
     // rcgen: Generate Cert + Key
     let (cert_der, private_key) = {
         let cert = rcgen::generate_simple_self_signed(names).unwrap();
-        (
-            cert.serialize_der().unwrap(),
-            cert.serialize_private_key_der(),
-        )
+
+        let cert_der = cert.cert.der().clone();
+        let private_key = pki_types::PrivateKeyDer::Pkcs8(cert.key_pair.serialize_der().into());
+
+        (cert_der, private_key)
     };
 
-    // rustls: Load Cert + key
-    let cert = rustls::Certificate(cert_der);
-    let private_key = rustls::PrivateKey(private_key);
-
     let mut certs_store = rustls::RootCertStore::empty();
-    certs_store.add(&cert).unwrap();
+    certs_store.add(cert_der.clone()).unwrap();
 
     TlsKey {
-        cert_chain: vec![cert],
+        cert_chain: vec![cert_der],
         private_key,
         certs_store,
     }
@@ -70,6 +67,11 @@ async fn main() {
         .format_timestamp_millis()
         .init();
 
+    // Initialize rustls crypto
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .unwrap();
+
     let keys = gen_keys(SERVER_NAME);
 
     // Server
@@ -77,7 +79,7 @@ async fn main() {
 
     let server_config = kymux::ServerConfig::Quic {
         addr: server_addr,
-        cert_chain: vec![keys.cert_chain[0].clone()],
+        cert_chain: keys.cert_chain.clone(),
         private_key: keys.private_key,
     };
 

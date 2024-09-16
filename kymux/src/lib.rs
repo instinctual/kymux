@@ -22,14 +22,14 @@ pub enum ServerConfig {
     #[cfg(feature = "backend-quinn")]
     Quic {
         addr: std::net::SocketAddr,
-        cert_chain: Vec<rustls::Certificate>,
-        private_key: rustls::PrivateKey,
+        cert_chain: Vec<rustls::pki_types::CertificateDer<'static>>,
+        private_key: rustls::pki_types::PrivateKeyDer<'static>,
     },
     #[cfg(feature = "backend-wtransport")]
     Wtransport {
         addr: std::net::SocketAddr,
-        cert_chain: Vec<rustls::Certificate>,
-        private_key: rustls::PrivateKey,
+        cert_chain: Vec<rustls::pki_types::CertificateDer<'static>>,
+        private_key: rustls::pki_types::PrivateKeyDer<'static>,
     },
 }
 
@@ -128,15 +128,6 @@ impl Server {
             },
         )
         .await
-    }
-
-    pub fn reject_new_connections(&self) {
-        match &self.endpoint {
-            #[cfg(feature = "backend-quinn")]
-            ServerInner::Quinn(endpoint) => endpoint.reject_new_connections(),
-            #[cfg(feature = "backend-wtransport")]
-            ServerInner::Wtransport(endpoint) => endpoint.reject_new_connections(),
-        };
     }
 
     pub fn close(&self, error_code: u32, reason: &str) {
