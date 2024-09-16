@@ -3,22 +3,19 @@ use crate::error::ConnectionError;
 use std::path::Path;
 
 use log::error;
+use rustls::pki_types;
 use thiserror::Error;
 
-#[derive(Debug, Clone)]
-pub struct Certificate(pub(crate) rustls::Certificate);
+#[derive(Debug)]
+pub struct Certificate(pub(crate) pki_types::CertificateDer<'static>);
 
-#[derive(Debug, Clone)]
-pub struct PrivateKey(pub(crate) rustls::PrivateKey);
+#[derive(Debug)]
+pub struct PrivateKey(pub(crate) pki_types::PrivateKeyDer<'static>);
 
 #[derive(Debug, Clone)]
 pub struct RootCertStore(pub(crate) rustls::RootCertStore);
 
 impl Certificate {
-    pub fn new(certificate: Vec<u8>) -> Self {
-        Self(rustls::Certificate(certificate))
-    }
-
     pub async fn load_pem_file(cert_path: impl AsRef<Path>) -> Result<Self, LoadCertError> {
         let pem_cert = tokio::fs::read(&cert_path).await?;
         let certificate = match rustls_pemfile::read_one(&mut pem_cert.as_ref())? {
@@ -34,27 +31,40 @@ impl Certificate {
             }
         };
 
-        Ok(Self(rustls::Certificate(certificate)))
+        Ok(Self(certificate))
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
     }
 }
 
-impl From<rustls::Certificate> for Certificate {
-    fn from(certificate: rustls::Certificate) -> Self {
+impl Clone for Certificate {
+    fn clone(&self) -> Self {
+        Self(self.to_vec().into())
+    }
+}
+
+impl From<pki_types::CertificateDer<'static>> for Certificate {
+    fn from(certificate: pki_types::CertificateDer<'static>) -> Self {
         Self(certificate)
     }
 }
 
-impl PrivateKey {
-    pub fn new(private_key: Vec<u8>) -> Self {
-        Self(rustls::PrivateKey(private_key))
+impl From<Vec<u8>> for Certificate {
+    fn from(vec: Vec<u8>) -> Self {
+        let der: pki_types::CertificateDer<'static> = vec.into();
+        der.into()
     }
+}
 
+impl PrivateKey {
     pub async fn load_pem_file(key_path: impl AsRef<Path>) -> Result<Self, LoadCertError> {
         let pem_key = tokio::fs::read(&key_path).await?;
         let private_key = match rustls_pemfile::read_one(&mut pem_key.as_ref())? {
-            Some(rustls_pemfile::Item::RSAKey(key)) => key,
-            Some(rustls_pemfile::Item::PKCS8Key(key)) => key,
-            Some(rustls_pemfile::Item::ECKey(key)) => key,
+            Some(rustls_pemfile::Item::Pkcs1Key(key)) => pki_types::PrivateKeyDer::Pkcs1(key),
+            Some(rustls_pemfile::Item::Pkcs8Key(key)) => pki_types::PrivateKeyDer::Pkcs8(key),
+            Some(rustls_pemfile::Item::Sec1Key(key)) => pki_types::PrivateKeyDer::Sec1(key),
             _ => {
                 error!(
                     "{} does not contain a valid key",
@@ -64,13 +74,19 @@ impl PrivateKey {
             }
         };
 
-        Ok(Self(rustls::PrivateKey(private_key)))
+        Ok(Self(private_key))
     }
 }
 
-impl From<rustls::PrivateKey> for PrivateKey {
-    fn from(private_key: rustls::PrivateKey) -> Self {
+impl From<pki_types::PrivateKeyDer<'static>> for PrivateKey {
+    fn from(private_key: pki_types::PrivateKeyDer<'static>) -> Self {
         Self(private_key)
+    }
+}
+
+impl Clone for PrivateKey {
+    fn clone(&self) -> Self {
+        Self(self.0.clone_key())
     }
 }
 
@@ -79,7 +95,7 @@ impl RootCertStore {
         Self(rustls::RootCertStore::empty())
     }
 
-    pub fn with_single_cert(der: &Certificate) -> Result<Self, CertError> {
+    pub fn with_single_cert(der: Certificate) -> Result<Self, CertError> {
         let mut certs = Self::empty();
         certs.add(der)?;
         Ok(certs)
@@ -93,8 +109,8 @@ impl RootCertStore {
         self.0.len()
     }
 
-    pub fn add(&mut self, der: &Certificate) -> Result<(), CertError> {
-        self.0.add(&der.0)?;
+    pub fn add(&mut self, der: Certificate) -> Result<(), CertError> {
+        self.0.add(der.0)?;
         Ok(())
     }
 }

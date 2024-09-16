@@ -38,7 +38,6 @@ impl WTransportServer {
         let cert_chain = cert_chain.into_iter().map(|c| c.0).collect();
 
         let mut tls_config = rustls::ServerConfig::builder()
-            .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(cert_chain, key.0)?;
         tls_config.alpn_protocols = vec![wtransport_proto::WEBTRANSPORT_ALPN.to_vec()];
@@ -68,10 +67,6 @@ impl WTransportServer {
         let request = self.endpoint.accept().await.await?;
         let conn = request.accept().await?;
         Ok(conn.into())
-    }
-
-    pub fn reject_new_connections(&self) {
-        self.endpoint.reject_new_connections();
     }
 
     pub fn close(&self, error_code: u32, reason: &str) {
@@ -110,15 +105,14 @@ impl WTransportConnectionDriver {
         } else {
             let mut cert_store = RootCertStore::empty();
 
-            for cert in rustls_native_certs::load_native_certs()? {
-                cert_store.add(&Certificate::new(cert.as_ref().into()))?;
+            for cert in rustls_native_certs::load_native_certs().certs {
+                cert_store.add(Certificate(cert))?;
             }
 
             cert_store
         };
 
         let mut tls_config = rustls::ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(certs.0)
             .with_no_client_auth();
         tls_config.alpn_protocols = vec![wtransport_proto::WEBTRANSPORT_ALPN.to_vec()];
@@ -229,11 +223,12 @@ impl SendStreamDriver for WTransportSendStreamDriver {
         Ok(())
     }
 
-    async fn abort(self: Box<Self>) -> Result<(), UnknownStreamError> {
+    async fn abort(mut self: Box<Self>) -> Result<(), UnknownStreamError> {
         // Not async, but the trait requires the method to be async, because
         // other implementations might abort asynchronously
         self.send
-            .reset(wtransport_proto::varint::VarInt::from_u32(0));
+            .reset(wtransport_proto::varint::VarInt::from_u32(0))
+            .map_err(|_| UnknownStreamError)?;
         Ok(())
     }
 }

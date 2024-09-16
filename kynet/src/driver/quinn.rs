@@ -72,10 +72,6 @@ impl QuinnServer {
         Ok(connection.into())
     }
 
-    pub fn reject_new_connections(&self) {
-        self.endpoint.reject_new_connections();
-    }
-
     pub fn close(&self, error_code: u32, reason: &str) {
         let var_int = quinn::VarInt::from_u32(error_code);
         self.endpoint.close(var_int, reason.as_bytes());
@@ -109,9 +105,10 @@ impl QuinnConnectionDriver {
         options: &QuinnClientOptions,
     ) -> Result<Connection, ConnectionError> {
         let mut config = if let Some(certs) = certs {
-            quinn::ClientConfig::with_root_certificates(certs.0)
+            quinn::ClientConfig::with_root_certificates(Arc::new(certs.0))
+                .map_err(|e| ConnectionError(format!("Certificates error {e}")))?
         } else {
-            quinn::ClientConfig::with_native_roots()
+            quinn::ClientConfig::with_platform_verifier()
         };
 
         let mut transport_config = quinn::TransportConfig::default();
@@ -218,8 +215,9 @@ impl SendStreamDriver for QuinnSendStreamDriver {
     }
 
     async fn close(&mut self) -> Result<(), WriteError> {
-        self.send.finish().await?;
-        Ok(())
+        self.send
+            .finish()
+            .map_err(|_| WriteError("Close error".to_string()))
     }
 
     async fn abort(mut self: Box<Self>) -> Result<(), UnknownStreamError> {
@@ -279,8 +277,8 @@ impl From<quinn::SendDatagramError> for SendDatagramError {
     }
 }
 
-impl From<quinn::UnknownStream> for UnknownStreamError {
-    fn from(_: quinn::UnknownStream) -> Self {
+impl From<quinn::ClosedStream> for UnknownStreamError {
+    fn from(_: quinn::ClosedStream) -> Self {
         Self
     }
 }
