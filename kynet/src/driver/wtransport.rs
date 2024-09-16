@@ -218,17 +218,17 @@ impl SendStreamDriver for WTransportSendStreamDriver {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<(), WriteError> {
-        self.send.finish().await?;
+    async fn close(&mut self) -> Result<(), ClosedStreamError> {
+        self.send.finish().await.map_err(|_| ClosedStreamError)?;
         Ok(())
     }
 
-    async fn abort(mut self: Box<Self>) -> Result<(), UnknownStreamError> {
+    async fn abort(mut self: Box<Self>) -> Result<(), ClosedStreamError> {
         // Not async, but the trait requires the method to be async, because
         // other implementations might abort asynchronously
         self.send
             .reset(wtransport_proto::varint::VarInt::from_u32(0))
-            .map_err(|_| UnknownStreamError)?;
+            .map_err(|_| ClosedStreamError)?;
         Ok(())
     }
 }

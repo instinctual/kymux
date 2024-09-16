@@ -61,9 +61,9 @@ pub trait SendStreamDriver: Debug + KySend + KySync {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<(), WriteError>;
+    async fn close(&mut self) -> Result<(), ClosedStreamError>;
 
-    async fn abort(self: Box<Self>) -> Result<(), UnknownStreamError>;
+    async fn abort(self: Box<Self>) -> Result<(), ClosedStreamError>;
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]

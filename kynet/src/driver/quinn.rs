@@ -214,13 +214,12 @@ impl SendStreamDriver for QuinnSendStreamDriver {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<(), WriteError> {
-        self.send
-            .finish()
-            .map_err(|_| WriteError("Close error".to_string()))
+    async fn close(&mut self) -> Result<(), ClosedStreamError> {
+        self.send.finish()?;
+        Ok(())
     }
 
-    async fn abort(mut self: Box<Self>) -> Result<(), UnknownStreamError> {
+    async fn abort(mut self: Box<Self>) -> Result<(), ClosedStreamError> {
         // Not async, but the trait requires the method to be async, because
         // other implementations might abort asynchronously
         self.send.reset(quinn::VarInt::from_u32(0))?;
@@ -277,7 +276,7 @@ impl From<quinn::SendDatagramError> for SendDatagramError {
     }
 }
 
-impl From<quinn::ClosedStream> for UnknownStreamError {
+impl From<quinn::ClosedStream> for ClosedStreamError {
     fn from(_: quinn::ClosedStream) -> Self {
         Self
     }

@@ -332,13 +332,13 @@ impl SendStreamDriver for WebTransportJSSendStreamDriver {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<(), WriteError> {
+    async fn close(&mut self) -> Result<(), ClosedStreamError> {
         let promise = self.writer.close();
         JsFuture::from(promise).await?;
         Ok(())
     }
 
-    async fn abort(self: Box<Self>) -> Result<(), UnknownStreamError> {
+    async fn abort(self: Box<Self>) -> Result<(), ClosedStreamError> {
         let promise = self.writer.abort();
         JsFuture::from(promise).await?;
         Ok(())
@@ -417,7 +417,7 @@ impl From<JsValue> for SendDatagramError {
     }
 }
 
-impl From<JsValue> for UnknownStreamError {
+impl From<JsValue> for ClosedStreamError {
     fn from(_: JsValue) -> Self {
         Self
     }
@@ -445,4 +445,4 @@ impl_from_jsvalue!(SendDatagramError);
 impl_from_jsvalue!(ReadError);
 impl_from_jsvalue!(ReadExactError);
 impl_from_jsvalue!(WriteError);
-impl_from_jsvalue!(UnknownStreamError);
+impl_from_jsvalue!(ClosedStreamError);

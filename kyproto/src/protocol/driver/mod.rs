@@ -40,5 +40,5 @@ impl_protocol_error_from!(SendDatagramError);
 impl_protocol_error_from!(ReadError);
 impl_protocol_error_from!(ReadExactError);
 impl_protocol_error_from!(WriteError);
-impl_protocol_error_from!(UnknownStreamError);
+impl_protocol_error_from!(ClosedStreamError);
 impl_protocol_error_from!(router::RouterError);

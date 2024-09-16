@@ -25,8 +25,8 @@ pub enum ReadExactError {
 pub struct WriteError(pub String);
 
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
-#[error("unknown stream")]
-pub struct UnknownStreamError;
+#[error("closed stream")]
+pub struct ClosedStreamError;
 
 impl From<std::io::Error> for ConnectionError {
     fn from(value: std::io::Error) -> Self {

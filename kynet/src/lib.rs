@@ -197,11 +197,11 @@ impl SendStream {
         self.driver.write_all(buf).await
     }
 
-    pub async fn close(&mut self) -> Result<(), WriteError> {
+    pub async fn close(&mut self) -> Result<(), ClosedStreamError> {
         self.driver.close().await
     }
 
-    pub async fn abort(self) -> Result<(), UnknownStreamError> {
+    pub async fn abort(self) -> Result<(), ClosedStreamError> {
         self.driver.abort().await
     }
 }
