@@ -17,6 +17,8 @@ pub use protocol::{
     VideoProtocol,
 };
 
+pub use kynet::init_crypto;
+
 mod clock_sync;
 mod connection;
 mod control;

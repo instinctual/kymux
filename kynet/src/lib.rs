@@ -50,6 +50,13 @@ mod driver;
 pub mod error;
 pub mod util;
 
+pub fn init_crypto() {
+    #[cfg(any(feature = "kynet-quinn", feature = "kynet-wtransport"))]
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .unwrap();
+}
+
 #[derive(Debug, Clone)]
 pub struct Connection {
     driver: KyArc<dyn ConnectionDriver>,
