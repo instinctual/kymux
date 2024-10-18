@@ -4,7 +4,6 @@ use std::io::{Error, ErrorKind, Result};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
 use bytes::BytesMut;
 use kyproto::error::ProtocolError;
 use kyproto::{
@@ -138,13 +137,6 @@ impl Drop for KyCom {
     }
 }
 
-#[async_trait]
-pub trait ForwarderProtocol {
-    const NAME: &'static str;
-
-    async fn forward(self) -> Result<()>;
-}
-
 pub struct Forwarder<T: ProtocolEndpoint> {
     addr: SocketAddr,
     rx: oneshot::Receiver<TcpStream>,
@@ -253,47 +245,32 @@ where
     }
 }
 
-#[async_trait]
-impl ForwarderProtocol for Forwarder<VideoClientEndpoint> {
-    const NAME: &'static str = "VideoClientEndpoint";
-
-    async fn forward(self) -> Result<()> {
+impl Forwarder<VideoClientEndpoint> {
+    pub async fn forward(self) -> Result<()> {
         self.forward_client_av_packets().await
     }
 }
 
-#[async_trait]
-impl ForwarderProtocol for Forwarder<VideoServerEndpoint> {
-    const NAME: &'static str = "VideoServerEndpoint";
-
-    async fn forward(self) -> Result<()> {
+impl Forwarder<VideoServerEndpoint> {
+    pub async fn forward(self) -> Result<()> {
         self.forward_server_av_packets().await
     }
 }
 
-#[async_trait]
-impl ForwarderProtocol for Forwarder<AudioClientEndpoint> {
-    const NAME: &'static str = "AudioClientEndpoint";
-
-    async fn forward(self) -> Result<()> {
+impl Forwarder<AudioClientEndpoint> {
+    pub async fn forward(self) -> Result<()> {
         self.forward_client_av_packets().await
     }
 }
 
-#[async_trait]
-impl ForwarderProtocol for Forwarder<AudioServerEndpoint> {
-    const NAME: &'static str = "AudioServerEndpoint";
-
-    async fn forward(self) -> Result<()> {
+impl Forwarder<AudioServerEndpoint> {
+    pub async fn forward(self) -> Result<()> {
         self.forward_server_av_packets().await
     }
 }
 
-#[async_trait]
-impl ForwarderProtocol for Forwarder<InputEndpoint> {
-    const NAME: &'static str = "InputEndpoint";
-
-    async fn forward(self) -> Result<()> {
+impl Forwarder<InputEndpoint> {
+    pub async fn forward(self) -> Result<()> {
         let (tcp_stream, (protocol_send, protocol_recv)) = self.start().await?;
         let (tcp_read, tcp_write) = tcp_stream.into_split();
 
@@ -307,9 +284,7 @@ impl ForwarderProtocol for Forwarder<InputEndpoint> {
 
         Ok(())
     }
-}
 
-impl Forwarder<InputEndpoint> {
     async fn forward_send(
         mut tcp_stream: OwnedReadHalf,
         mut protocol: ProtocolSend<InputPacket>,
