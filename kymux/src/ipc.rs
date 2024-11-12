@@ -14,7 +14,9 @@ use tokio::task::JoinHandle;
 use kycom::Forwarder;
 use log::{debug, warn};
 
-use crate::Result;
+use crate::{Error, Result};
+
+const KYMUX_LOCAL_CLIENTS_RANGE: u16 = 10;
 
 struct Task {
     name: &'static str,
@@ -40,12 +42,23 @@ pub(crate) struct IpcHandler {
 
 impl IpcHandler {
     pub(crate) async fn new(local_clients_port: u16) -> Result<Self> {
-        let kycom = kycom::KyCom::start_on_port(local_clients_port).await?;
+        for i in 0..KYMUX_LOCAL_CLIENTS_RANGE {
+            let port = local_clients_port + i;
 
-        Ok(Self {
-            kycom,
-            tasks: Default::default(),
-        })
+            let kycom = kycom::KyCom::start_on_port(local_clients_port).await;
+            match kycom {
+                Ok(kycom) => {
+                    return Ok(Self {
+                        kycom,
+                        tasks: Default::default(),
+                    })
+                }
+                Err(err) => {
+                    log::warn!("Fail to set IpcHandler on port {port}: {err:?}");
+                }
+            }
+        }
+        Err(Error::IpcNoPortAvailable)
     }
 
     pub(crate) async fn stop(&self) -> Result<()> {
