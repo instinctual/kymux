@@ -260,11 +260,7 @@ impl Connection {
         let endpoint = self.register_video_endpoint(id, video_protocol).await?;
         let id = endpoint.id();
 
-        let forwarder = self.ipc.kycom.register(endpoint)?;
-        let uri = forwarder.addr().url();
-
-        self.ipc.forward(forwarder)?;
-
+        let uri = self.ipc.register_and_forward(endpoint)?;
         Ok((id, uri))
     }
 
@@ -285,11 +281,7 @@ impl Connection {
     ) -> Result<String> {
         let endpoint = self.connect_video_endpoint(id, video_protocol)?;
 
-        let forwarder = self.ipc.kycom.register(endpoint)?;
-        let uri = forwarder.addr().url();
-
-        self.ipc.forward(forwarder)?;
-
+        let uri = self.ipc.register_and_forward(endpoint)?;
         Ok(uri)
     }
 
@@ -314,11 +306,7 @@ impl Connection {
         let endpoint = self.register_audio_endpoint(id, audio_protocol).await?;
         let id = endpoint.id();
 
-        let forwarder = self.ipc.kycom.register(endpoint)?;
-        let uri = forwarder.addr().url();
-
-        self.ipc.forward(forwarder)?;
-
+        let uri = self.ipc.register_and_forward(endpoint)?;
         Ok((id, uri))
     }
 
@@ -339,11 +327,7 @@ impl Connection {
     ) -> Result<String> {
         let endpoint = self.connect_audio_endpoint(id, audio_protocol)?;
 
-        let forwarder = self.ipc.kycom.register(endpoint)?;
-        let uri = forwarder.addr().url();
-
-        self.ipc.forward(forwarder)?;
-
+        let uri = self.ipc.register_and_forward(endpoint)?;
         Ok(uri)
     }
 
@@ -360,11 +344,7 @@ impl Connection {
         let endpoint = self.register_input_endpoint(id).await?;
         let id = endpoint.id();
 
-        let forwarder = self.ipc.kycom.register(endpoint)?;
-        let uri = forwarder.addr().url();
-
-        self.ipc.forward(forwarder)?;
-
+        let uri = self.ipc.register_and_forward(endpoint)?;
         Ok((id, uri))
     }
 
@@ -377,11 +357,7 @@ impl Connection {
     pub fn connect_input_endpoint_with_ipc_forward(&self, id: u16) -> Result<String> {
         let endpoint = self.connect_input_endpoint(id)?;
 
-        let forwarder = self.ipc.kycom.register(endpoint)?;
-        let uri = forwarder.addr().url();
-
-        self.ipc.forward(forwarder)?;
-
+        let uri = self.ipc.register_and_forward(endpoint)?;
         Ok(uri)
     }
 }

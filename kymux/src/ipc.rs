@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 use kyproto::{
-    AudioClientEndpoint, AudioServerEndpoint, InputEndpoint, VideoClientEndpoint,
+    AudioClientEndpoint, AudioServerEndpoint, InputEndpoint, ProtocolEndpoint, VideoClientEndpoint,
     VideoServerEndpoint,
 };
 use log::info;
@@ -73,6 +73,18 @@ impl IpcHandler {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn register_and_forward<Endpoint>(&self, endpoint: Endpoint) -> Result<String>
+    where
+        Endpoint: ProtocolEndpoint + Send + 'static,
+        Forwarder<Endpoint>: ForwarderProtocol,
+    {
+        let forwarder = self.kycom.register(endpoint)?;
+        let uri = forwarder.addr().url();
+
+        self.forward(forwarder)?;
+        Ok(uri)
     }
 
     pub(crate) fn forward<T>(&self, forwarder: T) -> Result<()>
