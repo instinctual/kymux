@@ -141,7 +141,7 @@ impl IPCForwardableConnection {
         Ok(())
     }
 
-    pub async fn register_video_endpoint_with_ipc_forward(
+    pub async fn register_and_forward_video_endpoint(
         &self,
         id: Option<u16>,
         video_protocol: VideoProtocol,
@@ -156,7 +156,7 @@ impl IPCForwardableConnection {
         Ok((id, uri))
     }
 
-    pub fn connect_video_endpoint_with_ipc_forward(
+    pub fn connect_and_forward_video_endpoint(
         &self,
         id: u16,
         video_protocol: VideoProtocol,
@@ -167,7 +167,7 @@ impl IPCForwardableConnection {
         Ok(uri)
     }
 
-    pub async fn register_audio_endpoint_with_ipc_forward(
+    pub async fn register_and_forward_audio_endpoint(
         &self,
         id: Option<u16>,
         audio_protocol: AudioProtocol,
@@ -182,7 +182,7 @@ impl IPCForwardableConnection {
         Ok((id, uri))
     }
 
-    pub fn connect_audio_endpoint_with_ipc_forward(
+    pub fn connect_and_forward_audio_endpoint(
         &self,
         id: u16,
         audio_protocol: AudioProtocol,
@@ -193,7 +193,7 @@ impl IPCForwardableConnection {
         Ok(uri)
     }
 
-    pub async fn register_input_endpoint_with_ipc_forward(
+    pub async fn register_and_forward_input_endpoint(
         &self,
         id: Option<u16>,
     ) -> Result<(u16, String)> {
@@ -204,7 +204,7 @@ impl IPCForwardableConnection {
         Ok((id, uri))
     }
 
-    pub fn connect_input_endpoint_with_ipc_forward(&self, id: u16) -> Result<String> {
+    pub fn connect_and_forward_input_endpoint(&self, id: u16) -> Result<String> {
         let endpoint = self.inner.connect_input_endpoint(id)?;
 
         let uri = self.ipc.register_and_forward(endpoint)?;

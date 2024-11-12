@@ -435,33 +435,33 @@ async fn stress_test() {
                 let (registerer_uri, connector_uri) = match stream_type {
                     StreamType::Audio(protocol) => {
                         let (endpoint, registerer_uri) = endpoint_registerer
-                            .register_audio_endpoint_with_ipc_forward(None, protocol)
+                            .register_and_forward_audio_endpoint(None, protocol)
                             .await
                             .unwrap();
                         let connector_uri = endpoint_connector
-                            .connect_audio_endpoint_with_ipc_forward(endpoint, protocol)
+                            .connect_and_forward_audio_endpoint(endpoint, protocol)
                             .unwrap();
 
                         (registerer_uri, connector_uri)
                     }
                     StreamType::Input => {
                         let (endpoint, registerer_uri) = endpoint_registerer
-                            .register_input_endpoint_with_ipc_forward(None)
+                            .register_and_forward_input_endpoint(None)
                             .await
                             .unwrap();
                         let connector_uri = endpoint_connector
-                            .connect_input_endpoint_with_ipc_forward(endpoint)
+                            .connect_and_forward_input_endpoint(endpoint)
                             .unwrap();
 
                         (registerer_uri, connector_uri)
                     }
                     StreamType::Video(protocol) => {
                         let (endpoint, registerer_uri) = endpoint_registerer
-                            .register_video_endpoint_with_ipc_forward(None, protocol)
+                            .register_and_forward_video_endpoint(None, protocol)
                             .await
                             .unwrap();
                         let connector_uri = endpoint_connector
-                            .connect_video_endpoint_with_ipc_forward(endpoint, protocol)
+                            .connect_and_forward_video_endpoint(endpoint, protocol)
                             .unwrap();
 
                         (registerer_uri, connector_uri)
@@ -524,22 +524,22 @@ async fn stress_test() {
         let (producer_uri, consumer_uri) = match stream_type {
             StreamType::Input => {
                 let (endpoint, registerer_uri) = endpoint_registerer
-                    .register_input_endpoint_with_ipc_forward(None)
+                    .register_and_forward_input_endpoint(None)
                     .await
                     .unwrap();
                 let connector_uri = endpoint_connector
-                    .connect_input_endpoint_with_ipc_forward(endpoint)
+                    .connect_and_forward_input_endpoint(endpoint)
                     .unwrap();
 
                 (registerer_uri, connector_uri)
             }
             StreamType::Video(protocol) => {
                 let (endpoint, registerer_uri) = endpoint_registerer
-                    .register_video_endpoint_with_ipc_forward(None, protocol)
+                    .register_and_forward_video_endpoint(None, protocol)
                     .await
                     .unwrap();
                 let connector_uri = endpoint_connector
-                    .connect_video_endpoint_with_ipc_forward(endpoint, protocol)
+                    .connect_and_forward_video_endpoint(endpoint, protocol)
                     .unwrap();
 
                 (registerer_uri, connector_uri)

@@ -114,20 +114,18 @@ async fn main() {
     println!("Connected");
 
     let (endpoint, server_addr_endpoint1) = server
-        .register_input_endpoint_with_ipc_forward(None)
+        .register_and_forward_input_endpoint(None)
         .await
         .unwrap();
-    let client_addr_endpoint1 = client
-        .connect_input_endpoint_with_ipc_forward(endpoint)
-        .unwrap();
+    let client_addr_endpoint1 = client.connect_and_forward_input_endpoint(endpoint).unwrap();
     println!("Endpoint {endpoint:X} registered");
 
     let (endpoint2, server_addr_endpoint2) = server
-        .register_input_endpoint_with_ipc_forward(None)
+        .register_and_forward_input_endpoint(None)
         .await
         .unwrap();
     let client_addr_endpoint2 = client
-        .connect_input_endpoint_with_ipc_forward(endpoint2)
+        .connect_and_forward_input_endpoint(endpoint2)
         .unwrap();
 
     // Create host client
@@ -188,11 +186,11 @@ async fn main() {
 
     // Endpoint 3
     let (endpoint3, server_addr_endpoint3) = server
-        .register_input_endpoint_with_ipc_forward(None)
+        .register_and_forward_input_endpoint(None)
         .await
         .unwrap();
     let client_addr_endpoint3 = client
-        .connect_input_endpoint_with_ipc_forward(endpoint3)
+        .connect_and_forward_input_endpoint(endpoint3)
         .unwrap();
 
     // Create host client 3
