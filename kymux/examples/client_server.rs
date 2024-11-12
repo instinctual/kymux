@@ -1,6 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
+use kymux::ipc::IPCForwardableConnection;
 use rustls::pki_types;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -85,7 +86,10 @@ async fn main() {
 
     let server_accept_task = async move {
         let server = kymux::Server::new(server_config).await.unwrap();
-        server.accept().await.unwrap()
+        let connection = server.accept().await.unwrap();
+        IPCForwardableConnection::new(connection, 9091)
+            .await
+            .unwrap()
     };
 
     // Client
@@ -105,6 +109,7 @@ async fn main() {
     let (server_ret, client_ret) = tokio::join!(server_accept_task, client);
     let server = server_ret;
     let client = client_ret.unwrap();
+    let client = IPCForwardableConnection::new(client, 9092).await.unwrap();
 
     println!("Connected");
 

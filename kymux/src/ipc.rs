@@ -4,8 +4,8 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 use kyproto::{
-    AudioClientEndpoint, AudioServerEndpoint, InputEndpoint, ProtocolEndpoint, VideoClientEndpoint,
-    VideoServerEndpoint,
+    AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, InputEndpoint, ProtocolEndpoint,
+    VideoClientEndpoint, VideoProtocol, VideoServerEndpoint,
 };
 use log::info;
 use tokio::sync;
@@ -35,13 +35,13 @@ impl Task {
     }
 }
 
-pub(crate) struct IpcHandler {
+pub struct IpcHandler {
     pub(crate) kycom: kycom::KyCom,
     tasks: Mutex<Vec<Task>>,
 }
 
 impl IpcHandler {
-    pub(crate) async fn new(local_clients_port: u16) -> Result<Self> {
+    pub async fn new(local_clients_port: u16) -> Result<Self> {
         for i in 0..KYMUX_LOCAL_CLIENTS_RANGE {
             let port = local_clients_port + i;
 
@@ -61,7 +61,7 @@ impl IpcHandler {
         Err(Error::IpcNoPortAvailable)
     }
 
-    pub(crate) async fn stop(&self) -> Result<()> {
+    pub async fn stop(&self) -> Result<()> {
         let tasks = {
             let mut tasks = self.tasks.lock()?;
             mem::take(tasks.deref_mut())
@@ -75,7 +75,7 @@ impl IpcHandler {
         Ok(())
     }
 
-    pub(crate) fn register_and_forward<Endpoint>(&self, endpoint: Endpoint) -> Result<String>
+    pub fn register_and_forward<Endpoint>(&self, endpoint: Endpoint) -> Result<String>
     where
         Endpoint: ProtocolEndpoint + Send + 'static,
         Forwarder<Endpoint>: ForwarderProtocol,
@@ -87,7 +87,7 @@ impl IpcHandler {
         Ok(uri)
     }
 
-    pub(crate) fn forward<T>(&self, forwarder: T) -> Result<()>
+    fn forward<T>(&self, forwarder: T) -> Result<()>
     where
         T: ForwarderProtocol + Send + 'static,
     {
@@ -116,6 +116,99 @@ impl IpcHandler {
         });
 
         Ok(())
+    }
+}
+
+pub struct IPCForwardableConnection {
+    inner: kyproto::KyProto,
+    ipc: IpcHandler,
+}
+
+impl IPCForwardableConnection {
+    pub async fn new(connection: crate::Connection, local_clients_port: u16) -> Result<Self> {
+        Ok(Self {
+            inner: connection.connection,
+            ipc: IpcHandler::new(local_clients_port).await?,
+        })
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        self.ipc.stop().await
+    }
+
+    pub async fn closed(&self) -> Result<()> {
+        self.inner.closed().await?;
+        Ok(())
+    }
+
+    pub async fn register_video_endpoint_with_ipc_forward(
+        &self,
+        id: Option<u16>,
+        video_protocol: VideoProtocol,
+    ) -> Result<(u16, String)> {
+        let endpoint = self
+            .inner
+            .register_video_endpoint(id, video_protocol)
+            .await?;
+        let id = endpoint.id();
+
+        let uri = self.ipc.register_and_forward(endpoint)?;
+        Ok((id, uri))
+    }
+
+    pub fn connect_video_endpoint_with_ipc_forward(
+        &self,
+        id: u16,
+        video_protocol: VideoProtocol,
+    ) -> Result<String> {
+        let endpoint = self.inner.connect_video_endpoint(id, video_protocol)?;
+
+        let uri = self.ipc.register_and_forward(endpoint)?;
+        Ok(uri)
+    }
+
+    pub async fn register_audio_endpoint_with_ipc_forward(
+        &self,
+        id: Option<u16>,
+        audio_protocol: AudioProtocol,
+    ) -> Result<(u16, String)> {
+        let endpoint = self
+            .inner
+            .register_audio_endpoint(id, audio_protocol)
+            .await?;
+        let id = endpoint.id();
+
+        let uri = self.ipc.register_and_forward(endpoint)?;
+        Ok((id, uri))
+    }
+
+    pub fn connect_audio_endpoint_with_ipc_forward(
+        &self,
+        id: u16,
+        audio_protocol: AudioProtocol,
+    ) -> Result<String> {
+        let endpoint = self.inner.connect_audio_endpoint(id, audio_protocol)?;
+
+        let uri = self.ipc.register_and_forward(endpoint)?;
+        Ok(uri)
+    }
+
+    pub async fn register_input_endpoint_with_ipc_forward(
+        &self,
+        id: Option<u16>,
+    ) -> Result<(u16, String)> {
+        let endpoint = self.inner.register_input_endpoint(id).await?;
+        let id = endpoint.id();
+
+        let uri = self.ipc.register_and_forward(endpoint)?;
+        Ok((id, uri))
+    }
+
+    pub fn connect_input_endpoint_with_ipc_forward(&self, id: u16) -> Result<String> {
+        let endpoint = self.inner.connect_input_endpoint(id)?;
+
+        let uri = self.ipc.register_and_forward(endpoint)?;
+        Ok(uri)
     }
 }
 

@@ -13,7 +13,7 @@ use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::{self, JoinHandle};
 
-use kymux::{AudioProtocol, VideoProtocol};
+use kymux::{ipc::IPCForwardableConnection, AudioProtocol, VideoProtocol};
 
 const SERVER_NAME: &str = "kymux_test";
 const PORT: u16 = 10000;
@@ -54,7 +54,7 @@ fn gen_keys(server_name: &str) -> TlsKey {
     }
 }
 
-async fn create_connection() -> (kymux::Connection, kymux::Connection) {
+async fn create_connection() -> (IPCForwardableConnection, IPCForwardableConnection) {
     let keys = gen_keys(SERVER_NAME);
 
     let server_accept = async move {
@@ -65,7 +65,8 @@ async fn create_connection() -> (kymux::Connection, kymux::Connection) {
         };
 
         let server = kymux::Server::new(config).await.unwrap();
-        server.accept().await
+        let connection = server.accept().await.unwrap();
+        IPCForwardableConnection::new(connection, 9090).await
     };
 
     let client_connect = async move {
@@ -75,7 +76,8 @@ async fn create_connection() -> (kymux::Connection, kymux::Connection) {
             server_name: SERVER_NAME.into(),
         };
 
-        kymux::Connection::connect(config).await
+        let connection = kymux::Connection::connect(config).await.unwrap();
+        IPCForwardableConnection::new(connection, 9091).await
     };
 
     match tokio::try_join!(server_accept, client_connect) {

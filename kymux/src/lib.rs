@@ -1,7 +1,7 @@
 mod error;
 
 #[cfg(feature = "ipc")]
-mod ipc;
+pub mod ipc;
 
 use std::time::Duration;
 
@@ -127,7 +127,6 @@ impl Server {
                 local_clients_port: KYMUX_LOCAL_CLIENTS_PORT + 1,
             },
         )
-        .await
     }
 
     pub fn close(&self, error_code: u32, reason: &str) {
@@ -156,25 +155,12 @@ struct ConnectionParam {
 
 pub struct Connection {
     connection: kyproto::KyProto,
-    #[cfg(feature = "ipc")]
-    ipc: ipc::IpcHandler,
 }
 
 impl Connection {
     #[allow(unused_variables)]
-    async fn new(connection: kyproto::KyProto, params: ConnectionParam) -> Result<Self> {
-        Ok(Self {
-            connection,
-            #[cfg(feature = "ipc")]
-            ipc: ipc::IpcHandler::new(params.local_clients_port).await?,
-        })
-    }
-
-    pub async fn stop(&self) -> Result<()> {
-        #[cfg(feature = "ipc")]
-        self.ipc.stop().await?;
-
-        Ok(())
+    fn new(connection: kyproto::KyProto, params: ConnectionParam) -> Result<Self> {
+        Ok(Self { connection })
     }
 
     pub async fn closed(&self) -> Result<()> {
@@ -236,7 +222,6 @@ impl Connection {
                 local_clients_port: KYMUX_LOCAL_CLIENTS_PORT,
             },
         )
-        .await
     }
 
     pub async fn register_video_endpoint(
@@ -251,19 +236,6 @@ impl Connection {
         Ok(endpoint)
     }
 
-    #[cfg(feature = "ipc")]
-    pub async fn register_video_endpoint_with_ipc_forward(
-        &self,
-        id: Option<u16>,
-        video_protocol: VideoProtocol,
-    ) -> Result<(u16, String)> {
-        let endpoint = self.register_video_endpoint(id, video_protocol).await?;
-        let id = endpoint.id();
-
-        let uri = self.ipc.register_and_forward(endpoint)?;
-        Ok((id, uri))
-    }
-
     pub fn connect_video_endpoint(
         &self,
         id: u16,
@@ -271,18 +243,6 @@ impl Connection {
     ) -> Result<VideoClientEndpoint> {
         let endpoint = self.connection.connect_video_endpoint(id, video_protocol)?;
         Ok(endpoint)
-    }
-
-    #[cfg(feature = "ipc")]
-    pub fn connect_video_endpoint_with_ipc_forward(
-        &self,
-        id: u16,
-        video_protocol: VideoProtocol,
-    ) -> Result<String> {
-        let endpoint = self.connect_video_endpoint(id, video_protocol)?;
-
-        let uri = self.ipc.register_and_forward(endpoint)?;
-        Ok(uri)
     }
 
     pub async fn register_audio_endpoint(
@@ -297,19 +257,6 @@ impl Connection {
         Ok(endpoint)
     }
 
-    #[cfg(feature = "ipc")]
-    pub async fn register_audio_endpoint_with_ipc_forward(
-        &self,
-        id: Option<u16>,
-        audio_protocol: AudioProtocol,
-    ) -> Result<(u16, String)> {
-        let endpoint = self.register_audio_endpoint(id, audio_protocol).await?;
-        let id = endpoint.id();
-
-        let uri = self.ipc.register_and_forward(endpoint)?;
-        Ok((id, uri))
-    }
-
     pub fn connect_audio_endpoint(
         &self,
         id: u16,
@@ -319,45 +266,13 @@ impl Connection {
         Ok(endpoint)
     }
 
-    #[cfg(feature = "ipc")]
-    pub fn connect_audio_endpoint_with_ipc_forward(
-        &self,
-        id: u16,
-        audio_protocol: AudioProtocol,
-    ) -> Result<String> {
-        let endpoint = self.connect_audio_endpoint(id, audio_protocol)?;
-
-        let uri = self.ipc.register_and_forward(endpoint)?;
-        Ok(uri)
-    }
-
     pub async fn register_input_endpoint(&self, id: Option<u16>) -> Result<InputEndpoint> {
         let endpoint = self.connection.register_input_endpoint(id).await?;
         Ok(endpoint)
     }
 
-    #[cfg(feature = "ipc")]
-    pub async fn register_input_endpoint_with_ipc_forward(
-        &self,
-        id: Option<u16>,
-    ) -> Result<(u16, String)> {
-        let endpoint = self.register_input_endpoint(id).await?;
-        let id = endpoint.id();
-
-        let uri = self.ipc.register_and_forward(endpoint)?;
-        Ok((id, uri))
-    }
-
     pub fn connect_input_endpoint(&self, id: u16) -> Result<InputEndpoint> {
         let endpoint = self.connection.connect_input_endpoint(id)?;
         Ok(endpoint)
-    }
-
-    #[cfg(feature = "ipc")]
-    pub fn connect_input_endpoint_with_ipc_forward(&self, id: u16) -> Result<String> {
-        let endpoint = self.connect_input_endpoint(id)?;
-
-        let uri = self.ipc.register_and_forward(endpoint)?;
-        Ok(uri)
     }
 }
