@@ -13,9 +13,6 @@ pub use kyproto::{
 };
 
 #[allow(dead_code)]
-const KYMUX_LOCAL_CLIENTS_PORT: u16 = 9090;
-
-#[allow(dead_code)]
 const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
 pub enum ServerConfig {
@@ -120,13 +117,7 @@ impl Server {
             ServerInner::Wtransport(endpoint) => endpoint.accept().await?,
         };
 
-        Connection::new(
-            connection,
-            ConnectionParam {
-                #[cfg(feature = "ipc")]
-                local_clients_port: KYMUX_LOCAL_CLIENTS_PORT + 1,
-            },
-        )
+        Connection::new(connection)
     }
 
     pub fn close(&self, error_code: u32, reason: &str) {
@@ -148,18 +139,12 @@ impl Server {
     }
 }
 
-struct ConnectionParam {
-    #[cfg(feature = "ipc")]
-    local_clients_port: u16,
-}
-
 pub struct Connection {
     connection: kyproto::KyProto,
 }
 
 impl Connection {
-    #[allow(unused_variables)]
-    fn new(connection: kyproto::KyProto, params: ConnectionParam) -> Result<Self> {
+    fn new(connection: kyproto::KyProto) -> Result<Self> {
         Ok(Self { connection })
     }
 
@@ -215,13 +200,7 @@ impl Connection {
             }
         };
 
-        Self::new(
-            connection,
-            ConnectionParam {
-                #[cfg(feature = "ipc")]
-                local_clients_port: KYMUX_LOCAL_CLIENTS_PORT,
-            },
-        )
+        Self::new(connection)
     }
 
     pub async fn register_video_endpoint(
