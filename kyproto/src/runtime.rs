@@ -1,16 +1,13 @@
 use std::future::Future;
 
 #[cfg(target_family = "wasm")]
+pub use kywasmtime::{sleep, sleep_until, timeout, timeout_at, Instant, SystemTime, UNIX_EPOCH};
+#[cfg(target_family = "wasm")]
 pub use std::time::Duration;
 #[cfg(not(target_family = "wasm"))]
 pub use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(not(target_family = "wasm"))]
 pub use tokio::time::{sleep, sleep_until, timeout, timeout_at, Duration, Instant};
-#[cfg(target_family = "wasm")]
-pub use wasmtimer::{
-    std::{Instant, SystemTime, UNIX_EPOCH},
-    tokio::{sleep, sleep_until, timeout, timeout_at},
-};
 
 #[cfg(all(feature = "tokio-rt", not(target_family = "wasm")))]
 pub fn spawn<F>(future: F)

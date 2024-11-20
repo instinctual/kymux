@@ -14,6 +14,7 @@ async-trait = "0.1.73"
 byteorder = "1.4.3"
 bytes = "1.4.0"
 kynet = { version = "0.1", path = "../kynet", optional = true }
+kywasmtime = { git = "https://github.com/rom1v/kywasmtime.git", tag = "0.1", optional = true }
 log = "0.4.20"
 raptorq = "1.7.0"
 rmp-serde = "1.1.2"
@@ -22,7 +23,6 @@ thiserror = "1.0.47"
 tokio = { version = "1.32.0", features = ["rt", "macros", "sync", "time"], optional = true }
 wasm-bindgen = { version = "0.2.87", optional = true }
 wasm-bindgen-futures = { version = "0.4.37", optional = true }
-wasmtimer = { version = "0.2.0", optional = true }
 
 # https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
 [features]
@@ -30,9 +30,9 @@ default = ["dep:kynet"]
 js = [
     "kynet-webtransport-js",
     "tokio/sync",
+    "dep:kywasmtime",
     "dep:wasm-bindgen",
     "dep:wasm-bindgen-futures",
-    "dep:wasmtimer",
 ]
 kynet-quinn = ["kynet/kynet-quinn"]
 kynet-webtransport-js = ["kynet/kynet-webtransport-js"]
