@@ -45,7 +45,7 @@ impl IpcHandler {
         for i in 0..KYMUX_LOCAL_CLIENTS_RANGE {
             let port = local_clients_port + i;
 
-            let kycom = kycom::KyCom::start_on_port(local_clients_port).await;
+            let kycom = kycom::KyCom::start_on_port(port).await;
             match kycom {
                 Ok(kycom) => {
                     return Ok(Self {
