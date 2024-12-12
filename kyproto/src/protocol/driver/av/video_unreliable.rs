@@ -543,7 +543,7 @@ impl VideoUnreliableProtocolRecvDriver {
             }
 
             match pending_groups.take_next_packet(next_kypacket_seq) {
-                Action::None => {}
+                Action::None => deadline = None,
                 Action::Deadline(instant) => {
                     deadline = Some(instant);
                     // continue looping
@@ -565,6 +565,7 @@ impl VideoUnreliableProtocolRecvDriver {
                     }
                     next_kypacket_seq = kypacket_seq + 1;
                     tx_client.send(packet).await?;
+                    deadline = None;
                 }
             }
         }

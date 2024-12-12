@@ -316,7 +316,7 @@ impl AudioUnreliableFecProtocolRecvDriver {
             }
 
             match pending_group.take_next_packet(next_kypacket_seq) {
-                Action::None => {}
+                Action::None => deadline = None,
                 Action::Deadline(instant) => {
                     deadline = Some(instant);
                     // continue looping
@@ -353,6 +353,7 @@ impl AudioUnreliableFecProtocolRecvDriver {
                     debug!("===== SEND kypacket {kypacket_seq} to client");
                     next_kypacket_seq = kypacket_seq + 1;
                     tx_client.send(packet).await?;
+                    deadline = None;
                 }
             }
         }
