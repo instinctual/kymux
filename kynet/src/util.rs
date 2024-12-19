@@ -8,13 +8,17 @@ pub type KyArc<T> = std::sync::Arc<T>;
 pub type KyArc<T> = std::rc::Rc<T>;
 
 #[cfg(not(target_family = "wasm"))]
+#[derive(Debug)]
 pub struct KyMutex<T>(std::sync::Mutex<T>);
 #[cfg(target_family = "wasm")]
+#[derive(Debug)]
 pub struct KyMutex<T>(std::cell::RefCell<T>);
 
 #[cfg(not(target_family = "wasm"))]
+#[derive(Debug)]
 pub struct KyMutexGuard<'a, T: ?Sized + 'a>(std::sync::MutexGuard<'a, T>);
 #[cfg(target_family = "wasm")]
+#[derive(Debug)]
 pub struct KyMutexGuard<'a, T: ?Sized + 'a>(std::cell::RefMut<'a, T>);
 
 impl<T> KyMutex<T> {
