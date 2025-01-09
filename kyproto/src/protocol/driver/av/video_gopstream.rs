@@ -278,12 +278,20 @@ impl ProtocolRecvDriver for VideoGopStreamProtocolRecvDriver {
                 } => {
                     match packet {
                         AVPacket::Codec(_) => {
-                            if codec_gen != self.last_codec_gen {
-                                self.last_codec_gen = codec_gen;
+                            if codec_gen == self.last_codec_gen {
+                                // Ignore
+                                continue;
                             }
+
+                            self.last_codec_gen = codec_gen;
                         }
                         AVPacket::Media(ref packet) => {
-                            if !packet.header.is_config || config_gen != self.last_config_gen {
+                            if packet.header.is_config {
+                                if config_gen == self.last_config_gen {
+                                    // Ignore
+                                    continue;
+                                }
+
                                 self.last_config_gen = config_gen;
                             }
                         }
