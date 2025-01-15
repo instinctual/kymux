@@ -2,6 +2,7 @@ use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
 use crate::protocol::driver::av;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
+use crate::runtime;
 use crate::task::Task;
 
 use async_trait::async_trait;
@@ -60,9 +61,14 @@ use tokio::sync::mpsc;
  *     | ids | codec2 | cfg3 | I P P P P |
  *     +-----+--------+------+-----------+
  *
- * The ids are just two 32-bit numbers identifying the codec and config number.
- * They are incremented every time a new config or config packet is received
- * from the producer.
+ * The ids are three 32-bit numbers:
+ *  - the gop id, to make sure we consider GOPs in order
+ *  - the associated codec number
+ *  - the associated config number
+ *
+ * The gop id is incremented on every new keyframe. The other numbers are
+ * incremented every time a new codec or config packet (respectively) is
+ * received from the producer.
  *
  * The receiver uses these ids to make sure it sends a single codec or config
  * packet at most once.
@@ -74,6 +80,7 @@ use tokio::sync::mpsc;
 pub(crate) struct VideoGopStreamProtocolSendDriver {
     ky_channel: KyChannel,
     current_stream: Option<SendStream>,
+    gop_id: u32,
     codec_gen: u32,
     codec_packet: Option<CodecPacket>,
     config_gen: u32,
@@ -85,6 +92,7 @@ impl VideoGopStreamProtocolSendDriver {
         Ok(Self {
             ky_channel,
             current_stream: None,
+            gop_id: 0,
             codec_gen: 0,
             codec_packet: None,
             config_gen: 0,
@@ -118,8 +126,11 @@ impl ProtocolSendDriver for VideoGopStreamProtocolSendDriver {
                         // this helps the receiver to determine when there is a
                         // real new codec or config packet.
                         let mut buf = vec![];
+                        buf.write_u32::<BigEndian>(self.gop_id);
                         buf.write_u32::<BigEndian>(self.codec_gen);
                         buf.write_u32::<BigEndian>(self.config_gen);
+
+                        self.gop_id += 1;
 
                         let codec_packet = &self.codec_packet.as_ref().unwrap();
                         let config_packet = &self.config_packet.as_ref().unwrap();
@@ -154,18 +165,23 @@ impl ProtocolSendDriver for VideoGopStreamProtocolSendDriver {
 }
 
 #[derive(Debug)]
+struct Gop {
+    id: u32,
+    codec_gen: u32,
+    config_gen: u32,
+}
+
+#[derive(Debug)]
 enum RecvMsg {
     NewStream(RecvStream),
-    NewPacket {
-        packet: AVPacket,
-        codec_gen: u32,
-        config_gen: u32,
-    },
+    StreamIds { recv: RecvStream, gop: Gop },
+    NewPacket { packet: AVPacket, gop_id: u32 },
 }
 
 pub(crate) struct VideoGopStreamProtocolRecvDriver {
     tx: mpsc::Sender<RecvMsg>,
     rx: mpsc::Receiver<RecvMsg>,
+    gop: Option<Gop>,
     last_codec_gen: u32,
     last_config_gen: u32,
     accept_unis_task: Option<Task>,
@@ -190,6 +206,7 @@ impl VideoGopStreamProtocolRecvDriver {
         Ok(Self {
             tx,
             rx,
+            gop: None,
             last_codec_gen: 0,
             last_config_gen: 0,
             accept_unis_task: Some(accept_unis_task),
@@ -207,21 +224,34 @@ impl VideoGopStreamProtocolRecvDriver {
         }
     }
 
-    async fn read_packets(
+    async fn read_stream_ids(
         mut recv: RecvStream,
         tx: mpsc::Sender<RecvMsg>,
     ) -> Result<(), ProtocolError> {
-        let mut ids = [0; 8];
+        let mut ids = [0; 12];
         recv.read_exact(&mut ids).await?;
-        let codec_gen = BigEndian::read_u32(&ids[..4]);
-        let config_gen = BigEndian::read_u32(&ids[4..]);
-        while let Some(packet) = av::read_packet(&mut recv).await? {
-            tx.send(RecvMsg::NewPacket {
-                packet,
+        let id = BigEndian::read_u32(&ids[..4]);
+        let codec_gen = BigEndian::read_u32(&ids[4..8]);
+        let config_gen = BigEndian::read_u32(&ids[8..]);
+        tx.send(RecvMsg::StreamIds {
+            recv,
+            gop: Gop {
+                id,
                 codec_gen,
                 config_gen,
-            })
-            .await?;
+            },
+        })
+        .await?;
+        Ok(())
+    }
+
+    async fn read_packets(
+        mut recv: RecvStream,
+        tx: mpsc::Sender<RecvMsg>,
+        gop_id: u32,
+    ) -> Result<(), ProtocolError> {
+        while let Some(packet) = av::read_packet(&mut recv).await? {
+            tx.send(RecvMsg::NewPacket { packet, gop_id }).await?;
         }
         Ok(())
     }
@@ -249,56 +279,74 @@ impl ProtocolRecvDriver for VideoGopStreamProtocolRecvDriver {
                 RecvMsg::NewStream(recv) => {
                     info!("NewStream");
                     let tx = self.tx.clone();
-                    if let Some(task) = self.read_packets_task.take() {
-                        // This is not totally optimal: we should abandon an
-                        // old stream only once we received a complete frame on
-                        // the new stream (in case we receive packets on an old
-                        // stream before we receive a full frame on the new
-                        // stream), but this is way more complex, so keep it
-                        // simple: only keep the latest QUIC stream.
-                        task.cancel();
-                    }
 
-                    let read_packets_task = Task::spawn_task(
-                        async move {
-                            let ret = Self::read_packets(recv, tx).await;
-                            if let Err(err) = ret {
-                                error!("read_packets() error: {err}");
-                            }
-                        },
-                        "read_packets",
-                    );
-
-                    self.read_packets_task = Some(read_packets_task);
-                }
-                RecvMsg::NewPacket {
-                    packet,
-                    codec_gen,
-                    config_gen,
-                } => {
-                    match packet {
-                        AVPacket::Codec(_) => {
-                            if codec_gen == self.last_codec_gen {
-                                // Ignore
-                                continue;
-                            }
-
-                            self.last_codec_gen = codec_gen;
+                    runtime::spawn(async move {
+                        let ret = Self::read_stream_ids(recv, tx).await;
+                        if let Err(err) = ret {
+                            error!("read_stream_ids() error: {err}");
                         }
-                        AVPacket::Media(ref packet) => {
-                            if packet.header.is_config {
-                                if config_gen == self.last_config_gen {
+                    });
+                }
+                RecvMsg::StreamIds { recv, gop } => {
+                    let is_newer = self
+                        .gop
+                        .as_ref()
+                        .map(|prev| gop.id > prev.id)
+                        .unwrap_or(true);
+                    if is_newer {
+                        let gop_id = gop.id;
+                        self.gop = Some(gop);
+                        if let Some(task) = self.read_packets_task.take() {
+                            // This is not totally optimal: we should abandon an
+                            // old stream only once we received a complete frame on
+                            // the new stream (in case we receive packets on an old
+                            // stream before we receive a full frame on the new
+                            // stream), but this is way more complex, so keep it
+                            // simple: only keep the latest QUIC stream.
+                            task.cancel();
+                        }
+
+                        let tx = self.tx.clone();
+                        let read_packets_task = Task::spawn_task(
+                            async move {
+                                let ret = Self::read_packets(recv, tx, gop_id).await;
+                                if let Err(err) = ret {
+                                    error!("read_packets() error: {err}");
+                                }
+                            },
+                            "read_packets",
+                        );
+
+                        self.read_packets_task = Some(read_packets_task);
+                    }
+                }
+                RecvMsg::NewPacket { packet, gop_id } => {
+                    let gop = self.gop.as_ref().unwrap();
+                    if gop_id == gop.id {
+                        match packet {
+                            AVPacket::Codec(_) => {
+                                if gop.codec_gen == self.last_codec_gen {
                                     // Ignore
                                     continue;
                                 }
 
-                                self.last_config_gen = config_gen;
+                                self.last_codec_gen = gop.codec_gen;
                             }
-                        }
-                        AVPacket::Hole(_) => panic!("Unexpected input hole packet"),
-                    }
+                            AVPacket::Media(ref packet) => {
+                                if packet.header.is_config {
+                                    if gop.config_gen == self.last_config_gen {
+                                        // Ignore
+                                        continue;
+                                    }
 
-                    return Ok(Some(packet));
+                                    self.last_config_gen = gop.config_gen;
+                                }
+                            }
+                            AVPacket::Hole(_) => panic!("Unexpected input hole packet"),
+                        }
+
+                        return Ok(Some(packet));
+                    }
                 }
             }
         }
