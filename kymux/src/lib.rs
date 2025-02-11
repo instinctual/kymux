@@ -7,9 +7,9 @@ use std::time::Duration;
 
 pub use error::{Error, Result};
 pub use kyproto::{
-    AVPacket, AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, InputEndpoint, InputPacket,
-    ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint, VideoProtocol,
-    VideoServerEndpoint,
+    AVPacket, AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, ConnectionStats,
+    InputEndpoint, InputPacket, KyProto, ProtocolEndpoint, ProtocolRecv, ProtocolSend,
+    StatsProvider, VideoClientEndpoint, VideoProtocol, VideoServerEndpoint,
 };
 
 #[allow(dead_code)]
@@ -151,6 +151,14 @@ impl Connection {
     pub async fn closed(&self) -> Result<()> {
         self.connection.closed().await?;
         Ok(())
+    }
+
+    pub async fn connection_stats(&self) -> ConnectionStats {
+        self.connection.connection_stats().await
+    }
+
+    pub fn stats_provider(&self) -> KyProtoStatsProvider {
+        self.connection.stats_provider()
     }
 
     pub async fn connect(config: ClientConfig) -> Result<Self> {
