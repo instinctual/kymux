@@ -18,6 +18,7 @@ pub use protocol::{
 };
 
 pub use kynet::init_crypto;
+pub use kynet::ConnectionStats;
 
 mod connection;
 mod control;
@@ -466,10 +467,32 @@ impl KyProto {
     pub async fn closed(&self) -> Result<(), ConnectionError> {
         self.conn.closed().await
     }
+
+    pub async fn connection_stats(&self) -> ConnectionStats {
+        KyChannel::connection_stats_(&self.conn).await
+    }
+
+    // Allow to retrieve stats without a reference to the KyProto instance
+    pub fn stats_provider(&self) -> KyProtoStatsProvider {
+        KyProtoStatsProvider {
+            conn: self.conn.clone(),
+        }
+    }
 }
 
 impl Drop for KyProto {
     fn drop(&mut self) {
         self.conn.close(0, "KyProto closed");
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct KyProtoStatsProvider {
+    conn: Connection,
+}
+
+impl KyProtoStatsProvider {
+    pub async fn connection_stats(&self) -> ConnectionStats {
+        self.conn.stats().await
     }
 }
