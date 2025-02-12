@@ -435,8 +435,9 @@ impl KyProto {
 
     pub async fn register_clock_sync_endpoint(
         &self,
-        id: u16,
+        id: Option<u16>,
     ) -> Result<ClockSyncServerEndpoint, ProtocolError> {
+        let id = self.get_endpoint_id(id);
         let ready_notifier = self.control.register_ready_notifier(id)?;
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
