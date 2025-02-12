@@ -10,7 +10,7 @@ use router::{KyChannel, Router};
 use async_trait::async_trait;
 use kynet::Connection;
 
-use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
+pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 pub use protocol::{
     AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, HolePacket,
     HolePacketHeader, InputPacket, MediaPacket, MediaPacketHeader, ProtocolRecv, ProtocolSend,
