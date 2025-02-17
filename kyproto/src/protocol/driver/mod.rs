@@ -7,6 +7,7 @@ use kynet::util::*;
 
 pub(crate) mod av;
 pub(crate) mod input;
+pub(crate) mod metrics;
 pub(crate) mod util;
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]

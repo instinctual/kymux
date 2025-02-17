@@ -13,8 +13,8 @@ use kynet::Connection;
 pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 pub use protocol::{
     AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, HolePacket,
-    HolePacketHeader, InputPacket, MediaPacket, MediaPacketHeader, ProtocolRecv, ProtocolSend,
-    VideoProtocol,
+    HolePacketHeader, InputPacket, MediaPacket, MediaPacketHeader, MetricsPacket, ProtocolRecv,
+    ProtocolSend, VideoProtocol,
 };
 
 pub use kynet::init_crypto;
@@ -200,6 +200,48 @@ impl ProtocolEndpoint for ClockSyncClientEndpoint {
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
         Ok(ClockSyncClientProtocol::new(self.ky_channel))
+    }
+}
+
+pub struct MetricsServerEndpoint {
+    id: u16,
+    ready_notifier: ReadyNotifier,
+    ky_channel: KyChannel,
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for MetricsServerEndpoint {
+    type Protocol = ProtocolSend<MetricsPacket>;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
+        self.ready_notifier.ready().await?;
+        protocol::start_metrics_protocol_send(self.ky_channel).await
+    }
+}
+
+pub struct MetricsClientEndpoint {
+    id: u16,
+    ready_notifier: ReadyNotifier,
+    ky_channel: KyChannel,
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+impl ProtocolEndpoint for MetricsClientEndpoint {
+    type Protocol = ProtocolRecv<MetricsPacket>;
+
+    fn id(&self) -> u16 {
+        self.id
+    }
+
+    async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
+        self.ready_notifier.ready().await?;
+        protocol::start_metrics_protocol_recv(self.ky_channel).await
     }
 }
 
@@ -457,6 +499,36 @@ impl KyProto {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
         let endpoint = ClockSyncClientEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
+        };
+        Ok(endpoint)
+    }
+
+    pub async fn register_metrics_endpoint(
+        &self,
+        id: Option<u16>,
+    ) -> Result<MetricsServerEndpoint, ProtocolError> {
+        let id = self.get_endpoint_id(id);
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        self.control.register_endpoint(id).await?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = MetricsServerEndpoint {
+            id,
+            ready_notifier,
+            ky_channel,
+        };
+        Ok(endpoint)
+    }
+
+    pub fn connect_metrics_endpoint(
+        &self,
+        id: u16,
+    ) -> Result<MetricsClientEndpoint, ProtocolError> {
+        let ready_notifier = self.control.register_ready_notifier(id)?;
+        let ky_channel = self.router.register(id)?;
+        let endpoint = MetricsClientEndpoint {
             id,
             ready_notifier,
             ky_channel,

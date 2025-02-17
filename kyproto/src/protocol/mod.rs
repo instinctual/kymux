@@ -7,6 +7,7 @@ pub use crate::protocol::av::{
 };
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
 pub use crate::protocol::input::InputPacket;
+pub use crate::protocol::metrics::MetricsPacket;
 use crate::router::KyChannel;
 
 use async_trait::async_trait;
@@ -17,6 +18,7 @@ mod av;
 pub(crate) mod clock_sync;
 pub(crate) mod driver;
 mod input;
+mod metrics;
 
 pub struct ProtocolSend<T> {
     driver: Box<dyn ProtocolSendDriver<Packet = T>>,
@@ -198,4 +200,28 @@ pub(crate) async fn start_input_protocol(
     };
 
     Ok((protocol_send, protocol_recv))
+}
+
+pub(crate) async fn start_metrics_protocol_send(
+    ky_channel: KyChannel,
+) -> Result<ProtocolSend<MetricsPacket>, ProtocolError> {
+    let protocol = ProtocolSend {
+        driver: Box::new(
+            driver::metrics::reliable::ReliableProtocolSendDriver::start(ky_channel).await?,
+        ),
+    };
+
+    Ok(protocol)
+}
+
+pub(crate) async fn start_metrics_protocol_recv(
+    ky_channel: KyChannel,
+) -> Result<ProtocolRecv<MetricsPacket>, ProtocolError> {
+    let protocol = ProtocolRecv {
+        driver: Box::new(
+            driver::metrics::reliable::ReliableProtocolRecvDriver::start(ky_channel).await?,
+        ),
+    };
+
+    Ok(protocol)
 }
