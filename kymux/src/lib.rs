@@ -9,8 +9,9 @@ pub use error::{Error, Result};
 pub use kyproto::{
     AVPacket, AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, ClockSyncClientEndpoint,
     ClockSyncClientProtocol, ClockSyncServerEndpoint, ClockSyncServerProtocol, ConnectionStats,
-    InputEndpoint, InputPacket, KyProtoStatsProvider, ProtocolEndpoint, ProtocolRecv, ProtocolSend,
-    VideoClientEndpoint, VideoProtocol, VideoServerEndpoint,
+    InputEndpoint, InputPacket, KyProtoStatsProvider, MetricsClientEndpoint, MetricsPacket,
+    MetricsServerEndpoint, ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint,
+    VideoProtocol, VideoServerEndpoint,
 };
 
 #[allow(dead_code)]
@@ -274,6 +275,19 @@ impl Connection {
 
     pub fn connect_clock_sync_endpoint(&self, id: u16) -> Result<ClockSyncClientEndpoint> {
         let endpoint = self.connection.connect_clock_sync_endpoint(id)?;
+        Ok(endpoint)
+    }
+
+    pub async fn register_metrics_endpoint(
+        &self,
+        id: Option<u16>,
+    ) -> Result<MetricsServerEndpoint> {
+        let endpoint = self.connection.register_metrics_endpoint(id).await?;
+        Ok(endpoint)
+    }
+
+    pub fn connect_metrics_endpoint(&self, id: u16) -> Result<MetricsClientEndpoint> {
+        let endpoint = self.connection.connect_metrics_endpoint(id)?;
         Ok(endpoint)
     }
 }
