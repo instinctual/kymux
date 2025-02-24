@@ -9,8 +9,10 @@ use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
 pub use crate::protocol::input::InputPacket;
 pub use crate::protocol::metrics::MetricsPacket;
 use crate::router::KyChannel;
+use crate::ProtocolStats;
 
 use async_trait::async_trait;
+use kynet::util::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -58,29 +60,38 @@ pub enum AudioProtocol {
 pub(crate) async fn start_video_protocol_send(
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
+    protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
 ) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
     let protocol = match video_protocol {
         VideoProtocol::Reliable => ProtocolSend {
             driver: Box::new(
-                driver::av::reliable::ReliableProtocolSendDriver::start(ky_channel).await?,
+                driver::av::reliable::ReliableProtocolSendDriver::start(ky_channel, protocol_stats)
+                    .await?,
             ),
         },
         VideoProtocol::GopStream => ProtocolSend {
             driver: Box::new(
-                driver::av::video_gopstream::VideoGopStreamProtocolSendDriver::start(ky_channel)
-                    .await?,
+                driver::av::video_gopstream::VideoGopStreamProtocolSendDriver::start(
+                    ky_channel,
+                    protocol_stats,
+                )
+                .await?,
             ),
         },
         VideoProtocol::Unreliable => ProtocolSend {
             driver: Box::new(
-                driver::av::video_unreliable::VideoUnreliableProtocolSendDriver::start(ky_channel)
-                    .await?,
+                driver::av::video_unreliable::VideoUnreliableProtocolSendDriver::start(
+                    ky_channel,
+                    protocol_stats,
+                )
+                .await?,
             ),
         },
         VideoProtocol::UnreliableFec => ProtocolSend {
             driver: Box::new(
                 driver::av::video_unreliable_fec::VideoUnreliableFecProtocolSendDriver::start(
                     ky_channel,
+                    protocol_stats,
                 )
                 .await?,
             ),
@@ -93,29 +104,38 @@ pub(crate) async fn start_video_protocol_send(
 pub(crate) async fn start_video_protocol_recv(
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
+    protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
 ) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
     let protocol = match video_protocol {
         VideoProtocol::Reliable => ProtocolRecv {
             driver: Box::new(
-                driver::av::reliable::ReliableProtocolRecvDriver::start(ky_channel).await?,
+                driver::av::reliable::ReliableProtocolRecvDriver::start(ky_channel, protocol_stats)
+                    .await?,
             ),
         },
         VideoProtocol::GopStream => ProtocolRecv {
             driver: Box::new(
-                driver::av::video_gopstream::VideoGopStreamProtocolRecvDriver::start(ky_channel)
-                    .await?,
+                driver::av::video_gopstream::VideoGopStreamProtocolRecvDriver::start(
+                    ky_channel,
+                    protocol_stats,
+                )
+                .await?,
             ),
         },
         VideoProtocol::Unreliable => ProtocolRecv {
             driver: Box::new(
-                driver::av::video_unreliable::VideoUnreliableProtocolRecvDriver::start(ky_channel)
-                    .await?,
+                driver::av::video_unreliable::VideoUnreliableProtocolRecvDriver::start(
+                    ky_channel,
+                    protocol_stats,
+                )
+                .await?,
             ),
         },
         VideoProtocol::UnreliableFec => ProtocolRecv {
             driver: Box::new(
                 driver::av::video_unreliable_fec::VideoUnreliableFecProtocolRecvDriver::start(
                     ky_channel,
+                    protocol_stats,
                 )
                 .await?,
             ),
@@ -128,23 +148,29 @@ pub(crate) async fn start_video_protocol_recv(
 pub(crate) async fn start_audio_protocol_send(
     ky_channel: KyChannel,
     audio_protocol: AudioProtocol,
+    protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
 ) -> Result<ProtocolSend<AVPacket>, ProtocolError> {
     let protocol = match audio_protocol {
         AudioProtocol::Reliable => ProtocolSend {
             driver: Box::new(
-                driver::av::reliable::ReliableProtocolSendDriver::start(ky_channel).await?,
+                driver::av::reliable::ReliableProtocolSendDriver::start(ky_channel, protocol_stats)
+                    .await?,
             ),
         },
         AudioProtocol::Unreliable => ProtocolSend {
             driver: Box::new(
-                driver::av::audio_unreliable::AudioUnreliableProtocolSendDriver::start(ky_channel)
-                    .await?,
+                driver::av::audio_unreliable::AudioUnreliableProtocolSendDriver::start(
+                    ky_channel,
+                    protocol_stats,
+                )
+                .await?,
             ),
         },
         AudioProtocol::UnreliableFec => ProtocolSend {
             driver: Box::new(
                 driver::av::audio_unreliable_fec::AudioUnreliableFecProtocolSendDriver::start(
                     ky_channel,
+                    protocol_stats,
                 )
                 .await?,
             ),
@@ -157,23 +183,29 @@ pub(crate) async fn start_audio_protocol_send(
 pub(crate) async fn start_audio_protocol_recv(
     ky_channel: KyChannel,
     audio_protocol: AudioProtocol,
+    protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
 ) -> Result<ProtocolRecv<AVPacket>, ProtocolError> {
     let protocol = match audio_protocol {
         AudioProtocol::Reliable => ProtocolRecv {
             driver: Box::new(
-                driver::av::reliable::ReliableProtocolRecvDriver::start(ky_channel).await?,
+                driver::av::reliable::ReliableProtocolRecvDriver::start(ky_channel, protocol_stats)
+                    .await?,
             ),
         },
         AudioProtocol::Unreliable => ProtocolRecv {
             driver: Box::new(
-                driver::av::audio_unreliable::AudioUnreliableProtocolRecvDriver::start(ky_channel)
-                    .await?,
+                driver::av::audio_unreliable::AudioUnreliableProtocolRecvDriver::start(
+                    ky_channel,
+                    protocol_stats,
+                )
+                .await?,
             ),
         },
         AudioProtocol::UnreliableFec => ProtocolRecv {
             driver: Box::new(
                 driver::av::audio_unreliable_fec::AudioUnreliableFecProtocolRecvDriver::start(
                     ky_channel,
+                    protocol_stats,
                 )
                 .await?,
             ),

@@ -8,6 +8,7 @@ use error::*;
 use router::{KyChannel, Router};
 
 use async_trait::async_trait;
+use kynet::util::*;
 use kynet::Connection;
 
 pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
@@ -57,6 +58,7 @@ pub struct VideoServerEndpoint {
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
+    protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
@@ -70,7 +72,12 @@ impl ProtocolEndpoint for VideoServerEndpoint {
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
-        protocol::start_video_protocol_send(self.ky_channel, self.video_protocol).await
+        protocol::start_video_protocol_send(
+            self.ky_channel,
+            self.video_protocol,
+            &self.protocol_stats,
+        )
+        .await
     }
 }
 
@@ -79,6 +86,7 @@ pub struct VideoClientEndpoint {
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     video_protocol: VideoProtocol,
+    protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
@@ -92,7 +100,12 @@ impl ProtocolEndpoint for VideoClientEndpoint {
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
-        protocol::start_video_protocol_recv(self.ky_channel, self.video_protocol).await
+        protocol::start_video_protocol_recv(
+            self.ky_channel,
+            self.video_protocol,
+            &self.protocol_stats,
+        )
+        .await
     }
 }
 
@@ -101,6 +114,7 @@ pub struct AudioServerEndpoint {
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     audio_protocol: AudioProtocol,
+    protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
@@ -114,7 +128,12 @@ impl ProtocolEndpoint for AudioServerEndpoint {
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
-        protocol::start_audio_protocol_send(self.ky_channel, self.audio_protocol).await
+        protocol::start_audio_protocol_send(
+            self.ky_channel,
+            self.audio_protocol,
+            &self.protocol_stats,
+        )
+        .await
     }
 }
 
@@ -123,6 +142,7 @@ pub struct AudioClientEndpoint {
     ready_notifier: ReadyNotifier,
     ky_channel: KyChannel,
     audio_protocol: AudioProtocol,
+    protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
@@ -136,7 +156,12 @@ impl ProtocolEndpoint for AudioClientEndpoint {
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
         self.ready_notifier.ready().await?;
-        protocol::start_audio_protocol_recv(self.ky_channel, self.audio_protocol).await
+        protocol::start_audio_protocol_recv(
+            self.ky_channel,
+            self.audio_protocol,
+            &self.protocol_stats,
+        )
+        .await
     }
 }
 
@@ -244,6 +269,13 @@ impl ProtocolEndpoint for MetricsClientEndpoint {
         protocol::start_metrics_protocol_recv(self.ky_channel).await
     }
 }
+///
+/// Stats filled by protocol implementations
+#[derive(Debug, Clone, Default)]
+pub struct ProtocolStats {
+    /// The number of (unreliable) packets not received or received too late
+    pub dropped_packets: Option<u64>,
+}
 
 const INITIATOR_SERVER: u16 = 0;
 const INITIATOR_CLIENT: u16 = 1;
@@ -261,6 +293,8 @@ pub struct KyProto {
     // quinn example: https://github.com/quinn-rs/quinn/blob/e652b6d999f053ffe21eeea247854882ae480281/quinn-proto/src/lib.rs#L230
     next_endpoint_index: AtomicU16,
     initiator: u16,
+
+    protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
 impl KyProto {
@@ -280,6 +314,7 @@ impl KyProto {
             control,
             initiator: INITIATOR_CLIENT,
             next_endpoint_index: AtomicU16::new(0),
+            protocol_stats: KyArc::new(KyMutex::new(ProtocolStats::default())),
         })
     }
 
@@ -299,6 +334,7 @@ impl KyProto {
             control,
             initiator: INITIATOR_SERVER,
             next_endpoint_index: AtomicU16::new(0),
+            protocol_stats: KyArc::new(KyMutex::new(ProtocolStats::default())),
         })
     }
 
@@ -390,11 +426,13 @@ impl KyProto {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
+        let protocol_stats = self.protocol_stats.clone();
         let endpoint = VideoServerEndpoint {
             id,
             ready_notifier,
             ky_channel,
             video_protocol,
+            protocol_stats,
         };
         Ok(endpoint)
     }
@@ -406,11 +444,13 @@ impl KyProto {
     ) -> Result<VideoClientEndpoint, ProtocolError> {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
+        let protocol_stats = self.protocol_stats.clone();
         let endpoint = VideoClientEndpoint {
             id,
             ready_notifier,
             ky_channel,
             video_protocol,
+            protocol_stats,
         };
         Ok(endpoint)
     }
@@ -424,11 +464,13 @@ impl KyProto {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         self.control.register_endpoint(id).await?;
         let ky_channel = self.router.register(id)?;
+        let protocol_stats = self.protocol_stats.clone();
         let endpoint = AudioServerEndpoint {
             id,
             ready_notifier,
             ky_channel,
             audio_protocol,
+            protocol_stats,
         };
         Ok(endpoint)
     }
@@ -440,11 +482,13 @@ impl KyProto {
     ) -> Result<AudioClientEndpoint, ProtocolError> {
         let ready_notifier = self.control.register_ready_notifier(id)?;
         let ky_channel = self.router.register(id)?;
+        let protocol_stats = self.protocol_stats.clone();
         let endpoint = AudioClientEndpoint {
             id,
             ready_notifier,
             ky_channel,
             audio_protocol,
+            protocol_stats,
         };
         Ok(endpoint)
     }

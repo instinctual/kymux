@@ -67,10 +67,12 @@ use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
 use crate::runtime;
 use crate::task::Task;
+use crate::ProtocolStats;
 
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use kynet::error::{ConnectionError, ReadExactError};
+use kynet::util::*;
 use kynet::{RecvStream, SendStream};
 #[allow(unused)]
 use log::{debug, error, info, warn};
@@ -87,7 +89,10 @@ pub(crate) struct VideoGopStreamProtocolSendDriver {
 }
 
 impl VideoGopStreamProtocolSendDriver {
-    pub(crate) async fn start(ky_channel: KyChannel) -> Result<Self, ProtocolError> {
+    pub(crate) async fn start(
+        ky_channel: KyChannel,
+        _protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
+    ) -> Result<Self, ProtocolError> {
         Ok(Self {
             ky_channel,
             current_stream: None,
@@ -188,7 +193,10 @@ pub(crate) struct VideoGopStreamProtocolRecvDriver {
 }
 
 impl VideoGopStreamProtocolRecvDriver {
-    pub(crate) async fn start(ky_channel: KyChannel) -> Result<Self, ProtocolError> {
+    pub(crate) async fn start(
+        ky_channel: KyChannel,
+        _protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
+    ) -> Result<Self, ProtocolError> {
         let (tx, rx) = mpsc::channel(16);
 
         let tx2 = tx.clone();
