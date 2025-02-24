@@ -402,7 +402,7 @@ impl VideoUnreliableProtocolRecvDriver {
 
     pub(crate) async fn start(
         mut ky_channel: KyChannel,
-        _protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
+        protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<Self, ProtocolError> {
         let stream = ky_channel.accept_uni().await?;
 
@@ -428,9 +428,11 @@ impl VideoUnreliableProtocolRecvDriver {
             },
             "recv_datagrams",
         );
+
+        let protocol_stats = protocol_stats.clone();
         let process_task = Task::spawn_task(
             async move {
-                let ret = Self::process(rx, tx_client).await;
+                let ret = Self::process(rx, tx_client, protocol_stats).await;
                 if let Err(err) = ret {
                     error!("process() error: {err}");
                 }
@@ -498,6 +500,7 @@ impl VideoUnreliableProtocolRecvDriver {
     async fn process(
         mut rx: mpsc::Receiver<RecvMsg>,
         mut tx_client: mpsc::Sender<AVPacket>,
+        protocol_stats: KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<(), ProtocolError> {
         let mut group_sequencer = Sequencer::<u32>::new();
         let mut kypacket_sequencer = Sequencer::<u32>::new();
@@ -562,6 +565,14 @@ impl VideoUnreliableProtocolRecvDriver {
                 } => {
                     debug!("===== SEND kypacket {kypacket_seq} to client");
                     if kypacket_seq > next_kypacket_seq {
+                        let missing_packets = kypacket_seq - next_kypacket_seq;
+                        {
+                            let mut protocol_stats = protocol_stats.lock();
+                            let dropped_packets =
+                                protocol_stats.dropped_packets.unwrap_or_default();
+                            protocol_stats.dropped_packets =
+                                Some(dropped_packets + missing_packets);
+                        }
                         if kypacket_seq == next_kypacket_seq + 1 {
                             warn!("Missing packet {next_kypacket_seq}");
                         } else {
