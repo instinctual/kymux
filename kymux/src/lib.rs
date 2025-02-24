@@ -10,8 +10,8 @@ pub use kyproto::{
     AVPacket, AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, ClockSyncClientEndpoint,
     ClockSyncClientProtocol, ClockSyncServerEndpoint, ClockSyncServerProtocol, ConnectionStats,
     InputEndpoint, InputPacket, KyProtoStatsProvider, MetricsClientEndpoint, MetricsPacket,
-    MetricsServerEndpoint, ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint,
-    VideoProtocol, VideoServerEndpoint,
+    MetricsServerEndpoint, ProtocolEndpoint, ProtocolRecv, ProtocolSend, ProtocolStats,
+    VideoClientEndpoint, VideoProtocol, VideoServerEndpoint,
 };
 
 #[allow(dead_code)]
@@ -157,6 +157,10 @@ impl Connection {
 
     pub async fn connection_stats(&self) -> ConnectionStats {
         self.connection.connection_stats().await
+    }
+
+    pub fn protocol_stats(&self) -> ProtocolStats {
+        self.connection.protocol_stats()
     }
 
     pub fn stats_provider(&self) -> KyProtoStatsProvider {
