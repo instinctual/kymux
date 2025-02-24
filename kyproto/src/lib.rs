@@ -588,10 +588,15 @@ impl KyProto {
         KyChannel::connection_stats_(&self.conn).await
     }
 
+    pub fn protocol_stats(&self) -> ProtocolStats {
+        self.protocol_stats.lock().clone()
+    }
+
     // Allow to retrieve stats without a reference to the KyProto instance
     pub fn stats_provider(&self) -> KyProtoStatsProvider {
         KyProtoStatsProvider {
             conn: self.conn.clone(),
+            protocol_stats: self.protocol_stats.clone(),
         }
     }
 }
@@ -605,10 +610,15 @@ impl Drop for KyProto {
 #[derive(Debug, Clone)]
 pub struct KyProtoStatsProvider {
     conn: Connection,
+    protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
 impl KyProtoStatsProvider {
     pub async fn connection_stats(&self) -> ConnectionStats {
         self.conn.stats().await
+    }
+
+    pub fn protocol_stats(&self) -> ProtocolStats {
+        self.protocol_stats.lock().clone()
     }
 }
