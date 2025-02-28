@@ -4,8 +4,9 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 use kyproto::{
-    AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, InputEndpoint, ProtocolEndpoint,
-    VideoClientEndpoint, VideoProtocol, VideoServerEndpoint,
+    AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, InputEndpoint, MetricsClientEndpoint,
+    MetricsServerEndpoint, ProtocolEndpoint, VideoClientEndpoint, VideoProtocol,
+    VideoServerEndpoint,
 };
 use log::info;
 use tokio::sync;
@@ -210,6 +211,10 @@ impl IPCForwardableConnection {
         let uri = self.ipc.register_and_forward(endpoint)?;
         Ok(uri)
     }
+
+    pub fn connect_metrics_endpoint(&self, id: u16) -> Result<MetricsClientEndpoint> {
+        Ok(self.inner.connect_metrics_endpoint(id)?)
+    }
 }
 
 #[async_trait]
@@ -258,6 +263,15 @@ impl ForwarderProtocol for Forwarder<AudioServerEndpoint> {
 #[async_trait]
 impl ForwarderProtocol for Forwarder<InputEndpoint> {
     const NAME: &'static str = "InputEndpoint";
+
+    async fn forward(self) -> std::io::Result<()> {
+        self.forward().await
+    }
+}
+
+#[async_trait]
+impl ForwarderProtocol for Forwarder<MetricsServerEndpoint> {
+    const NAME: &'static str = "MetricsServerEndpoint";
 
     async fn forward(self) -> std::io::Result<()> {
         self.forward().await
