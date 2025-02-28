@@ -8,8 +8,8 @@ use bytes::BytesMut;
 use kyproto::error::ProtocolError;
 use kyproto::{
     AVPacket, AVPacketHeader, AudioClientEndpoint, AudioServerEndpoint, CodecPacket, HolePacket,
-    InputEndpoint, InputPacket, MediaPacket, ProtocolEndpoint, ProtocolRecv, ProtocolSend,
-    VideoClientEndpoint, VideoServerEndpoint,
+    InputEndpoint, InputPacket, MediaPacket, MetricsPacket, MetricsServerEndpoint,
+    ProtocolEndpoint, ProtocolRecv, ProtocolSend, VideoClientEndpoint, VideoServerEndpoint,
 };
 #[allow(unused)]
 use log::{debug, error, info, warn};
@@ -336,6 +336,37 @@ impl Forwarder<InputEndpoint> {
         let payload = buf.freeze();
 
         let packet = InputPacket { type_, payload };
+
+        Ok(Some(packet))
+    }
+}
+
+impl Forwarder<MetricsServerEndpoint> {
+    pub async fn forward(self) -> Result<()> {
+        let (mut tcp_stream, mut protocol) = self.start().await?;
+
+        while let Some(packet) = Self::recv_packet(&mut tcp_stream).await? {
+            protocol.send(packet).await.map_err(to_io_error)?;
+        }
+
+        Ok(())
+    }
+
+    async fn recv_packet(tcp_stream: &mut TcpStream) -> Result<Option<MetricsPacket>> {
+        let mut buf = [0; 2];
+        if let Err(err) = tcp_stream.read_exact(&mut buf).await {
+            if err.kind() == ErrorKind::UnexpectedEof {
+                return Ok(None); // EOF
+            }
+            return Err(err);
+        }
+        let size = u16::from_be_bytes(buf);
+
+        let mut buf = BytesMut::zeroed(size as usize);
+        tcp_stream.read_exact(&mut buf).await?;
+        let payload = buf.freeze();
+
+        let packet = MetricsPacket { payload };
 
         Ok(Some(packet))
     }
