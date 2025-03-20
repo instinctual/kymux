@@ -21,6 +21,7 @@ pub use protocol::{
 pub use kynet::init_crypto;
 pub use kynet::ConnectionStats;
 
+pub mod clock;
 mod connection;
 mod control;
 pub mod error;

@@ -34,6 +34,12 @@ impl From<EndpointAlreadyRegistered> for ProtocolError {
     }
 }
 
+impl From<crate::clock::ClockError> for ProtocolError {
+    fn from(err: crate::clock::ClockError) -> Self {
+        Self(err.to_string())
+    }
+}
+
 #[cfg(all(feature = "js", target_family = "wasm"))]
 mod js_error {
     // For convenience, also provide the conversion from these errors to

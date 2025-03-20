@@ -1,3 +1,4 @@
+use crate::clock;
 use crate::error::ProtocolError;
 use crate::router::KyChannel;
 use crate::runtime::{self, Duration, SystemTime, UNIX_EPOCH};
@@ -62,7 +63,7 @@ impl ClockSyncClientProtocol {
         buf.put_u16(self.ky_channel.endpoint_id());
         buf.put_u32(req_id);
 
-        let t1 = now_micros()?;
+        let t1 = clock::now_micros()?;
         buf.put_i64(t1);
 
         self.ky_channel.send_datagram(buf.freeze()).await?;
@@ -70,7 +71,7 @@ impl ClockSyncClientProtocol {
         let deadline = t1 + 200000; // 200 ms timeout
 
         loop {
-            let now = now_micros()?;
+            let now = clock::now_micros()?;
             if now >= deadline {
                 // timeout
                 return Ok(None);
@@ -84,7 +85,7 @@ impl ClockSyncClientProtocol {
                 // t2: 8 bytes
                 // t3: 8 bytes
                 assert!(response.len() == 30);
-                let t4 = now_micros()?;
+                let t4 = clock::now_micros()?;
                 let endpoint_id = response.get_u16();
                 assert!(endpoint_id == self.ky_channel.endpoint_id());
                 let id = response.get_u32();
@@ -140,26 +141,16 @@ impl ClockSyncServerProtocol {
             // req_id: 4 bytes
             // t1: 8 bytes
             assert!(datagram.len() == 14);
-            let t2 = now_micros()?;
+            let t2 = clock::now_micros()?;
 
             let mut buf = BytesMut::with_capacity(30);
             buf.extend_from_slice(&datagram);
             buf.put_i64(t2);
 
-            let t3 = now_micros()?;
+            let t3 = clock::now_micros()?;
 
             buf.put_i64(t3);
             self.ky_channel.send_datagram(buf.freeze()).await?;
         }
     }
-}
-
-fn now_micros() -> Result<i64, ProtocolError> {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| ProtocolError("Timestamp failed".to_string()))?
-        .as_micros();
-    let signed =
-        i64::try_from(now).map_err(|_| ProtocolError("Invalid 63-bit timestamp".to_string()))?;
-    Ok(signed)
 }
