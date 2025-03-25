@@ -327,6 +327,7 @@ impl Forwarder<InputEndpoint> {
             if err.kind() == ErrorKind::UnexpectedEof {
                 return Ok(None); // EOF
             }
+            return Err(err);
         }
         let size = u16::from_be_bytes(buf);
 
