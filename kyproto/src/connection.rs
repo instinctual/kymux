@@ -3,7 +3,7 @@ pub use kynet::webtransport_js;
 
 #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
 pub mod quinn {
-    use crate::KyProto;
+    use crate::Connection;
 
     use std::net::SocketAddr;
 
@@ -12,7 +12,7 @@ pub mod quinn {
 
     pub use kynet::quinn::{QuinnClientOptions, QuinnServerOptions};
 
-    // Wrapper returning a KyProto on accept()
+    // Wrapper returning a Connection on accept()
     pub struct QuinnServer(kynet::quinn::QuinnServer);
 
     impl QuinnServer {
@@ -36,9 +36,9 @@ pub mod quinn {
             Ok(Self(server))
         }
 
-        pub async fn accept(&self) -> Result<KyProto, ConnectionError> {
+        pub async fn accept(&self) -> Result<Connection, ConnectionError> {
             let conn = self.0.accept().await?;
-            let kyproto = KyProto::accept(conn).await?;
+            let kyproto = Connection::accept(conn).await?;
             Ok(kyproto)
         }
 
@@ -54,7 +54,7 @@ pub mod quinn {
 
 #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
 pub mod wtransport {
-    use crate::KyProto;
+    use crate::Connection;
 
     use std::net::SocketAddr;
 
@@ -62,7 +62,7 @@ pub mod wtransport {
     use kynet::error::ConnectionError;
     pub use kynet::wtransport::{WTransportClientOptions, WTransportServerOptions};
 
-    // Wrapper returning a KyProto on accept()
+    // Wrapper returning a Connection on accept()
     pub struct WTransportServer(kynet::wtransport::WTransportServer);
 
     impl WTransportServer {
@@ -88,9 +88,9 @@ pub mod wtransport {
             Ok(Self(server))
         }
 
-        pub async fn accept(&self) -> Result<KyProto, ConnectionError> {
+        pub async fn accept(&self) -> Result<Connection, ConnectionError> {
             let conn = self.0.accept().await?;
-            let kyproto = KyProto::accept(conn).await?;
+            let kyproto = Connection::accept(conn).await?;
             Ok(kyproto)
         }
 

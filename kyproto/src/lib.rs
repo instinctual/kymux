@@ -4,12 +4,11 @@ compile_error!("No feature selected, pass either --features=js or --features=tok
 use std::sync::atomic::{AtomicU16, Ordering};
 
 use control::{Control, ReadyNotifier};
-use error::*;
+pub use error::*;
 use router::{KyChannel, Router};
 
 use async_trait::async_trait;
 use kynet::util::*;
-use kynet::Connection;
 
 pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 pub use protocol::{
@@ -281,8 +280,8 @@ pub struct ProtocolStats {
 const INITIATOR_SERVER: u16 = 0;
 const INITIATOR_CLIENT: u16 = 1;
 
-pub struct KyProto {
-    conn: Connection,
+pub struct Connection {
+    conn: kynet::Connection,
     router: Router,
     control: Control,
 
@@ -298,8 +297,8 @@ pub struct KyProto {
     protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
-impl KyProto {
-    pub async fn connect(conn: Connection) -> Result<Self, ConnectionError> {
+impl Connection {
+    pub async fn connect(conn: kynet::Connection) -> Result<Self, ConnectionError> {
         let (mut tx, rx) = conn.open_bi().await?;
 
         // Force a packet to be sent so that accept_bi() can detect bi-stream opening
@@ -319,7 +318,7 @@ impl KyProto {
         })
     }
 
-    pub async fn accept(conn: Connection) -> Result<Self, ConnectionError> {
+    pub async fn accept(conn: kynet::Connection) -> Result<Self, ConnectionError> {
         let (tx, mut rx) = conn.accept_bi().await?;
 
         // Consume the dummy byte used to detect the bi-stream immediately
@@ -602,15 +601,15 @@ impl KyProto {
     }
 }
 
-impl Drop for KyProto {
+impl Drop for Connection {
     fn drop(&mut self) {
-        self.conn.close(0, "KyProto closed");
+        self.conn.close(0, "KyProto connection closed");
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct KyProtoStatsProvider {
-    conn: Connection,
+    conn: kynet::Connection,
     protocol_stats: KyArc<KyMutex<ProtocolStats>>,
 }
 
