@@ -35,8 +35,7 @@ impl QuinnServer {
         key: PrivateKey,
         options: &QuinnServerOptions,
     ) -> Result<Self, ConnectionError> {
-        let cert_chain = cert_chain.into_iter().map(|c| c.0).collect();
-        let mut config = quinn::ServerConfig::with_single_cert(cert_chain, key.0)?;
+        let mut config = quinn::ServerConfig::with_single_cert(cert_chain, key)?;
 
         let mut transport_config = quinn::TransportConfig::default();
         transport_config.max_idle_timeout(
@@ -106,7 +105,7 @@ impl QuinnConnectionDriver {
         options: &QuinnClientOptions,
     ) -> Result<Connection, ConnectionError> {
         let mut config = if let Some(certs) = certs {
-            quinn::ClientConfig::with_root_certificates(Arc::new(certs.0))
+            quinn::ClientConfig::with_root_certificates(Arc::new(certs))
                 .map_err(|e| ConnectionError(format!("Certificates error {e}")))?
         } else {
             quinn::ClientConfig::with_platform_verifier()

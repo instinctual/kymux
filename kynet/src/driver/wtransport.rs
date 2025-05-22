@@ -36,11 +36,9 @@ impl WTransportServer {
         key: PrivateKey,
         options: &WTransportServerOptions,
     ) -> Result<Self, ConnectionError> {
-        let cert_chain = cert_chain.into_iter().map(|c| c.0).collect();
-
         let mut tls_config = rustls::ServerConfig::builder()
             .with_no_client_auth()
-            .with_single_cert(cert_chain, key.0)?;
+            .with_single_cert(cert_chain, key)?;
         tls_config.alpn_protocols = vec![wtransport_proto::WEBTRANSPORT_ALPN.to_vec()];
 
         let config = wtransport::ServerConfig::builder()
@@ -107,14 +105,14 @@ impl WTransportConnectionDriver {
             let mut cert_store = RootCertStore::empty();
 
             for cert in rustls_native_certs::load_native_certs().certs {
-                cert_store.add(Certificate(cert))?;
+                cert_store.add(cert)?;
             }
 
             cert_store
         };
 
         let mut tls_config = rustls::ClientConfig::builder()
-            .with_root_certificates(certs.0)
+            .with_root_certificates(certs)
             .with_no_client_auth();
         tls_config.alpn_protocols = vec![wtransport_proto::WEBTRANSPORT_ALPN.to_vec()];
 
