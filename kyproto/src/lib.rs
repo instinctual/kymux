@@ -10,6 +10,11 @@ use router::{KyChannel, Router};
 use async_trait::async_trait;
 use kynet::util::*;
 
+#[cfg(all(
+    any(feature = "kynet-quinn", feature = "kynet-wtransport"),
+    not(target_family = "wasm")
+))]
+pub use connection::Server;
 pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 pub use protocol::{
     AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, HolePacket,
@@ -18,7 +23,7 @@ pub use protocol::{
 };
 
 pub use kynet::init_crypto;
-pub use kynet::{ConnectionStats, Server};
+pub use kynet::ConnectionStats;
 
 pub mod clock;
 mod connection;

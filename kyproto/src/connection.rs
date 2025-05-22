@@ -1,10 +1,24 @@
 #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
 pub use kynet::webtransport_js;
 
+use crate::{Connection, ConnectionError};
+use async_trait::async_trait;
+
+#[allow(dead_code)]
+#[async_trait]
+pub trait Server: Send + Sync {
+    async fn accept(&self) -> Result<Connection, ConnectionError>;
+
+    fn close(&self, error_code: u32, reason: &str);
+
+    async fn wait_idle(&self);
+}
+
 #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
 pub mod quinn {
     use crate::Connection;
 
+    use async_trait::async_trait;
     use std::net::SocketAddr;
 
     use kynet::cert::{Certificate, PrivateKey};
@@ -36,18 +50,21 @@ pub mod quinn {
             let server = kynet::quinn::QuinnServer::start(port, cert_chain, key, options)?;
             Ok(Self(server))
         }
+    }
 
-        pub async fn accept(&self) -> Result<Connection, ConnectionError> {
+    #[async_trait]
+    impl super::Server for QuinnServer {
+        async fn accept(&self) -> Result<Connection, ConnectionError> {
             let conn = self.0.accept().await?;
             let kyproto = Connection::accept(conn).await?;
             Ok(kyproto)
         }
 
-        pub fn close(&self, error_code: u32, reason: &str) {
+        fn close(&self, error_code: u32, reason: &str) {
             self.0.close(error_code, reason);
         }
 
-        pub async fn wait_idle(&self) {
+        async fn wait_idle(&self) {
             self.0.wait_idle().await;
         }
     }
@@ -57,6 +74,7 @@ pub mod quinn {
 pub mod wtransport {
     use crate::Connection;
 
+    use async_trait::async_trait;
     use std::net::SocketAddr;
 
     use kynet::cert::{Certificate, PrivateKey};
@@ -89,18 +107,21 @@ pub mod wtransport {
                 kynet::wtransport::WTransportServer::start(port, cert_chain, key, options)?;
             Ok(Self(server))
         }
+    }
 
-        pub async fn accept(&self) -> Result<Connection, ConnectionError> {
+    #[async_trait]
+    impl super::Server for WTransportServer {
+        async fn accept(&self) -> Result<Connection, ConnectionError> {
             let conn = self.0.accept().await?;
             let kyproto = Connection::accept(conn).await?;
             Ok(kyproto)
         }
 
-        pub fn close(&self, error_code: u32, reason: &str) {
+        fn close(&self, error_code: u32, reason: &str) {
             self.0.close(error_code, reason);
         }
 
-        pub async fn wait_idle(&self) {
+        async fn wait_idle(&self) {
             self.0.wait_idle().await;
         }
     }
