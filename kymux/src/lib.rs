@@ -72,8 +72,8 @@ impl Server {
             } => {
                 let endpoint = kyproto::Connection::quinn_start_server_on_addr(
                     addr,
-                    cert_chain.into_iter().map(|c| c.into()).collect(),
-                    private_key.into(),
+                    cert_chain,
+                    private_key,
                     &kyproto::quinn::QuinnServerOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
                         ..Default::default()
@@ -90,8 +90,8 @@ impl Server {
             } => {
                 let endpoint = kyproto::Connection::wtransport_start_server_on_addr(
                     addr,
-                    cert_chain.into_iter().map(|c| c.into()).collect(),
-                    private_key.into(),
+                    cert_chain,
+                    private_key,
                     &kyproto::wtransport::WTransportServerOptions {
                         keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
                         ..Default::default()
@@ -146,7 +146,7 @@ pub async fn connect(config: ClientConfig) -> Result<kyproto::Connection> {
             let kyproto = kyproto::Connection::quinn_connect(
                 addr,
                 &server_name,
-                roots.map(|roots| roots.into()),
+                roots,
                 &kyproto::quinn::QuinnClientOptions {
                     keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
                     ..Default::default()
