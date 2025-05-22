@@ -33,3 +33,10 @@ impl From<std::io::Error> for ConnectionError {
         Self(value.to_string())
     }
 }
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("decode hex error")]
+pub enum DecodeHexError {
+    OddLength,
+    ParseInt(#[from] std::num::ParseIntError),
+}

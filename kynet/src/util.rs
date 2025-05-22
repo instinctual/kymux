@@ -83,3 +83,14 @@ impl<T> KySend for T {}
 
 #[cfg(target_family = "wasm")]
 impl<T> KySync for T {}
+
+pub fn hex_to_bytes(s: &str) -> Result<Vec<u8>, crate::error::DecodeHexError> {
+    if s.len() % 2 == 0 {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.into()))
+            .collect()
+    } else {
+        Err(crate::error::DecodeHexError::OddLength)
+    }
+}

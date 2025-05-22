@@ -30,7 +30,7 @@ pub mod quinn {
 #[cfg(all(feature = "kynet-webtransport-js", target_family = "wasm"))]
 pub mod webtransport_js {
     pub use crate::driver::webtransport_js::{
-        DecodeHexError, WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
+        WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
     };
 }
 

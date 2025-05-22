@@ -1,15 +1,14 @@
 use crate::error::*;
+use crate::util;
 use crate::{
     Connection, ConnectionDriver, ConnectionStats, RecvStream, RecvStreamDriver, SendStream,
     SendStreamDriver,
 };
 
 use std::cell::RefCell;
-use std::num::ParseIntError;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use thiserror::Error;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
@@ -63,13 +62,6 @@ impl WebTransportJSCongestionControl {
     }
 }
 
-#[derive(Debug, Error, Clone, Eq, PartialEq)]
-#[error("decode hex error")]
-pub enum DecodeHexError {
-    OddLength,
-    ParseInt(#[from] ParseIntError),
-}
-
 pub struct WebTransportJSHash {
     algorithm: String,
     value: Vec<u8>,
@@ -84,24 +76,13 @@ impl WebTransportJSHash {
     }
 
     pub fn new_from_hex(algorithm: impl Into<String>, hash: &str) -> Result<Self, DecodeHexError> {
-        let hash = Self::hex_to_bytes(hash)?;
+        let hash = util::hex_to_bytes(hash)?;
         let this = Self::new(algorithm, hash);
         Ok(this)
     }
 
     pub fn new_sha256_from_hex(hash: &str) -> Result<Self, DecodeHexError> {
         Self::new_from_hex("sha-256", hash)
-    }
-
-    fn hex_to_bytes(s: &str) -> Result<Vec<u8>, DecodeHexError> {
-        if s.len() % 2 == 0 {
-            (0..s.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.into()))
-                .collect()
-        } else {
-            Err(DecodeHexError::OddLength)
-        }
     }
 
     fn to_web_sys(&self) -> web_sys::WebTransportHash {
