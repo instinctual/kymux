@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::{ConnectionStats, KySend, KySync, RecvStream, SendStream};
+use crate::{Connection, ConnectionStats, KySend, KySync, RecvStream, SendStream};
 
 use std::fmt::Debug;
 
@@ -90,4 +90,14 @@ pub trait RecvStreamDriver: Debug + KySend + KySync {
 
         Ok(())
     }
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+pub trait Server: KySend + KySync {
+    async fn accept(&self) -> Result<Connection, ConnectionError>;
+
+    fn close(&self, error_code: u32, reason: &str);
+
+    async fn wait_idle(&self);
 }

@@ -41,6 +41,8 @@ pub mod wtransport {
     };
 }
 
+pub use crate::driver::Server;
+
 #[cfg(all(
     any(feature = "kynet-quinn", feature = "kynet-wtransport"),
     not(target_family = "wasm")

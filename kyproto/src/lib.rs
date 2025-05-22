@@ -18,7 +18,7 @@ pub use protocol::{
 };
 
 pub use kynet::init_crypto;
-pub use kynet::ConnectionStats;
+pub use kynet::{ConnectionStats, Server};
 
 pub mod clock;
 mod connection;

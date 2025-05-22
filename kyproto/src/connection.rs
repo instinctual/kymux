@@ -9,6 +9,7 @@ pub mod quinn {
 
     use kynet::cert::{Certificate, PrivateKey};
     use kynet::error::ConnectionError;
+    use kynet::Server;
 
     pub use kynet::quinn::{QuinnClientOptions, QuinnServerOptions};
 
@@ -61,6 +62,7 @@ pub mod wtransport {
     use kynet::cert::{Certificate, PrivateKey};
     use kynet::error::ConnectionError;
     pub use kynet::wtransport::{WTransportClientOptions, WTransportServerOptions};
+    use kynet::Server;
 
     // Wrapper returning a Connection on accept()
     pub struct WTransportServer(kynet::wtransport::WTransportServer);
