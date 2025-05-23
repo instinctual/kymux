@@ -66,7 +66,7 @@ impl KyCom {
         Self::start_on_addr(addr).await
     }
 
-    pub fn register<T>(&self, endpoint: T) -> Result<Forwarder<T>>
+    pub fn register<T>(&self, endpoint: T) -> Result<TcpForwarder<T>>
     where
         T: ProtocolEndpoint,
     {
@@ -88,7 +88,7 @@ impl KyCom {
             }
         };
 
-        Ok(Forwarder {
+        Ok(TcpForwarder {
             addr: self.addr,
             rx,
             endpoint,
@@ -137,13 +137,13 @@ impl Drop for KyCom {
     }
 }
 
-pub struct Forwarder<T: ProtocolEndpoint> {
+pub struct TcpForwarder<T: ProtocolEndpoint> {
     addr: SocketAddr,
     rx: oneshot::Receiver<TcpStream>,
     endpoint: T,
 }
 
-impl<T: ProtocolEndpoint> Forwarder<T> {
+impl<T: ProtocolEndpoint> TcpForwarder<T> {
     pub fn addr(&self) -> KyComAddr {
         KyComAddr::new(self.addr, self.endpoint.id())
     }
@@ -163,7 +163,7 @@ impl<T: ProtocolEndpoint> Forwarder<T> {
     }
 }
 
-impl<T> Forwarder<T>
+impl<T> TcpForwarder<T>
 where
     T: ProtocolEndpoint<Protocol = ProtocolRecv<AVPacket>>,
 {
@@ -198,7 +198,7 @@ where
     }
 }
 
-impl<T> Forwarder<T>
+impl<T> TcpForwarder<T>
 where
     T: ProtocolEndpoint<Protocol = ProtocolSend<AVPacket>>,
 {
@@ -245,31 +245,31 @@ where
     }
 }
 
-impl Forwarder<VideoClientEndpoint> {
+impl TcpForwarder<VideoClientEndpoint> {
     pub async fn forward(self) -> Result<()> {
         self.forward_client_av_packets().await
     }
 }
 
-impl Forwarder<VideoServerEndpoint> {
+impl TcpForwarder<VideoServerEndpoint> {
     pub async fn forward(self) -> Result<()> {
         self.forward_server_av_packets().await
     }
 }
 
-impl Forwarder<AudioClientEndpoint> {
+impl TcpForwarder<AudioClientEndpoint> {
     pub async fn forward(self) -> Result<()> {
         self.forward_client_av_packets().await
     }
 }
 
-impl Forwarder<AudioServerEndpoint> {
+impl TcpForwarder<AudioServerEndpoint> {
     pub async fn forward(self) -> Result<()> {
         self.forward_server_av_packets().await
     }
 }
 
-impl Forwarder<InputEndpoint> {
+impl TcpForwarder<InputEndpoint> {
     pub async fn forward(self) -> Result<()> {
         let (tcp_stream, (protocol_send, protocol_recv)) = self.start().await?;
         let (tcp_read, tcp_write) = tcp_stream.into_split();
@@ -341,7 +341,7 @@ impl Forwarder<InputEndpoint> {
     }
 }
 
-impl Forwarder<MetricsServerEndpoint> {
+impl TcpForwarder<MetricsServerEndpoint> {
     pub async fn forward(self) -> Result<()> {
         let (mut tcp_stream, mut protocol) = self.start().await?;
 
