@@ -2,17 +2,12 @@ use std::mem;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
-use async_trait::async_trait;
-use kyproto::{
-    AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, InputEndpoint, MetricsClientEndpoint,
-    MetricsServerEndpoint, ProtocolEndpoint, VideoClientEndpoint, VideoProtocol,
-    VideoServerEndpoint,
-};
+use kyproto::{AudioProtocol, MetricsClientEndpoint, ProtocolEndpoint, VideoProtocol};
 use log::info;
 use tokio::sync;
 use tokio::task::JoinHandle;
 
-use kycom::Forwarder;
+use kycom::{Forwarder, TcpForwarder};
 use log::{debug, warn};
 
 use crate::{Error, Result};
@@ -79,7 +74,7 @@ impl IpcHandler {
     pub fn register_and_forward<Endpoint>(&self, endpoint: Endpoint) -> Result<String>
     where
         Endpoint: ProtocolEndpoint + Send + 'static,
-        Forwarder<Endpoint>: ForwarderProtocol,
+        TcpForwarder<Endpoint>: Forwarder,
     {
         let forwarder = self.kycom.register(endpoint)?;
         let uri = forwarder.addr().url();
@@ -90,20 +85,24 @@ impl IpcHandler {
 
     fn forward<T>(&self, forwarder: T) -> Result<()>
     where
-        T: ForwarderProtocol + Send + 'static,
+        T: Forwarder + Send + 'static,
     {
-        debug!("Spawning {} forwarder", T::NAME);
+        let forwarder_name = std::any::type_name::<T>()
+            .rsplit("::")
+            .next()
+            .unwrap_or("Unknown");
+        debug!("Spawning {} forwarder", forwarder_name);
 
         let (stop_tx, stop_rx) = sync::oneshot::channel();
 
         let join_handle = tokio::spawn(async move {
             tokio::select! {
                 _ = stop_rx => {
-                    info!("Stopping {} forwarder", T::NAME);
+                    info!("Stopping {} forwarder", forwarder_name);
                 },
                 ret = forwarder.forward() => {
                     if let Err(err) = ret {
-                        info!("{} forwarder ended with result {err:?}", T::NAME);
+                        info!("{} forwarder ended with result {err:?}", forwarder_name);
                     }
                 }
             }
@@ -111,7 +110,7 @@ impl IpcHandler {
 
         let mut tasks = self.tasks.lock()?;
         tasks.push(Task {
-            name: T::NAME,
+            name: forwarder_name,
             stop_tx,
             join_handle,
         });
@@ -214,66 +213,5 @@ impl IPCForwardableConnection {
 
     pub fn connect_metrics_endpoint(&self, id: u16) -> Result<MetricsClientEndpoint> {
         Ok(self.inner.connect_metrics_endpoint(id)?)
-    }
-}
-
-#[async_trait]
-pub trait ForwarderProtocol {
-    const NAME: &'static str;
-
-    async fn forward(self) -> std::io::Result<()>;
-}
-
-#[async_trait]
-impl ForwarderProtocol for Forwarder<VideoClientEndpoint> {
-    const NAME: &'static str = "VideoClientEndpoint";
-
-    async fn forward(self) -> std::io::Result<()> {
-        self.forward().await
-    }
-}
-
-#[async_trait]
-impl ForwarderProtocol for Forwarder<VideoServerEndpoint> {
-    const NAME: &'static str = "VideoServerEndpoint";
-
-    async fn forward(self) -> std::io::Result<()> {
-        self.forward().await
-    }
-}
-
-#[async_trait]
-impl ForwarderProtocol for Forwarder<AudioClientEndpoint> {
-    const NAME: &'static str = "AudioClientEndpoint";
-
-    async fn forward(self) -> std::io::Result<()> {
-        self.forward().await
-    }
-}
-
-#[async_trait]
-impl ForwarderProtocol for Forwarder<AudioServerEndpoint> {
-    const NAME: &'static str = "AudioServerEndpoint";
-
-    async fn forward(self) -> std::io::Result<()> {
-        self.forward().await
-    }
-}
-
-#[async_trait]
-impl ForwarderProtocol for Forwarder<InputEndpoint> {
-    const NAME: &'static str = "InputEndpoint";
-
-    async fn forward(self) -> std::io::Result<()> {
-        self.forward().await
-    }
-}
-
-#[async_trait]
-impl ForwarderProtocol for Forwarder<MetricsServerEndpoint> {
-    const NAME: &'static str = "MetricsServerEndpoint";
-
-    async fn forward(self) -> std::io::Result<()> {
-        self.forward().await
     }
 }
