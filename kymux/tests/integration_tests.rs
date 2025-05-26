@@ -67,7 +67,7 @@ async fn create_connection() -> (IPCForwardableConnection, IPCForwardableConnect
 
         let server = kymux::Server::new(config).await.unwrap();
         let connection = server.accept().await.unwrap();
-        IPCForwardableConnection::new(connection, 9090).await
+        IPCForwardableConnection::new(connection, 9090..9091).await
     };
 
     let client_connect = async move {
@@ -78,7 +78,7 @@ async fn create_connection() -> (IPCForwardableConnection, IPCForwardableConnect
         };
 
         let connection = kymux::connect(config).await.unwrap();
-        IPCForwardableConnection::new(connection, 9091).await
+        IPCForwardableConnection::new(connection, 9091..9092).await
     };
 
     match tokio::try_join!(server_accept, client_connect) {

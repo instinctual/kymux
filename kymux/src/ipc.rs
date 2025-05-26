@@ -12,8 +12,6 @@ use log::{debug, warn};
 
 use crate::{Error, Result};
 
-const KYMUX_LOCAL_CLIENTS_RANGE: u16 = 10;
-
 struct Task {
     name: &'static str,
     stop_tx: sync::oneshot::Sender<()>,
@@ -37,10 +35,8 @@ pub struct IpcHandler {
 }
 
 impl IpcHandler {
-    pub async fn new(local_clients_port: u16) -> Result<Self> {
-        for i in 0..KYMUX_LOCAL_CLIENTS_RANGE {
-            let port = local_clients_port + i;
-
+    pub async fn new(local_ports: std::ops::Range<u16>) -> Result<Self> {
+        for port in local_ports {
             let kycom = kycom::KyCom::start_on_port(port).await;
             match kycom {
                 Ok(kycom) => {
@@ -125,10 +121,13 @@ pub struct IPCForwardableConnection {
 }
 
 impl IPCForwardableConnection {
-    pub async fn new(connection: kyproto::Connection, local_clients_port: u16) -> Result<Self> {
+    pub async fn new(
+        connection: kyproto::Connection,
+        local_ports: std::ops::Range<u16>,
+    ) -> Result<Self> {
         Ok(Self {
             inner: connection,
-            ipc: IpcHandler::new(local_clients_port).await?,
+            ipc: IpcHandler::new(local_ports).await?,
         })
     }
 
