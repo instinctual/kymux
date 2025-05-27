@@ -45,32 +45,24 @@ pub enum ClientConfig {
     },
 }
 
-#[cfg(feature = "server")]
-enum ServerInner {
-    #[cfg(feature = "backend-quinn")]
-    Quinn(kyproto::quinn::QuinnServer),
-    #[cfg(feature = "backend-wtransport")]
-    Wtransport(kyproto::wtransport::WTransportServer),
-}
-
 // Accept a single connection
 #[cfg(feature = "server")]
 pub struct Server {
-    endpoint: ServerInner,
+    inner: Box<dyn kyproto::Server>,
 }
 
 #[cfg(feature = "server")]
 impl Server {
     pub async fn new(config: ServerConfig) -> Result<Self> {
         // Setup quinn to accept connections
-        let endpoint = match config {
+        let inner: Box<dyn kyproto::Server> = match config {
             #[cfg(feature = "backend-quinn")]
             ServerConfig::Quic {
                 addr,
                 cert_chain,
                 private_key,
             } => {
-                let endpoint = kyproto::Connection::quinn_start_server_on_addr(
+                let server = kyproto::Connection::quinn_start_server_on_addr(
                     addr,
                     cert_chain,
                     private_key,
@@ -80,7 +72,7 @@ impl Server {
                     },
                 )?;
 
-                ServerInner::Quinn(endpoint)
+                Box::new(server)
             }
             #[cfg(feature = "backend-wtransport")]
             ServerConfig::Wtransport {
@@ -88,7 +80,7 @@ impl Server {
                 cert_chain,
                 private_key,
             } => {
-                let endpoint = kyproto::Connection::wtransport_start_server_on_addr(
+                let server = kyproto::Connection::wtransport_start_server_on_addr(
                     addr,
                     cert_chain,
                     private_key,
@@ -98,40 +90,24 @@ impl Server {
                     },
                 )?;
 
-                ServerInner::Wtransport(endpoint)
+                Box::new(server)
             }
         };
 
-        Ok(Self { endpoint })
+        Ok(Self { inner })
     }
 
     pub async fn accept(&self) -> Result<kyproto::Connection> {
-        let kyproto = match &self.endpoint {
-            #[cfg(feature = "backend-quinn")]
-            ServerInner::Quinn(endpoint) => endpoint.accept().await?,
-            #[cfg(feature = "backend-wtransport")]
-            ServerInner::Wtransport(endpoint) => endpoint.accept().await?,
-        };
-
-        Ok(kyproto)
+        let connection = self.inner.accept().await?;
+        Ok(connection)
     }
 
     pub fn close(&self, error_code: u32, reason: &str) {
-        match &self.endpoint {
-            #[cfg(feature = "backend-quinn")]
-            ServerInner::Quinn(endpoint) => endpoint.close(error_code, reason),
-            #[cfg(feature = "backend-wtransport")]
-            ServerInner::Wtransport(endpoint) => endpoint.close(error_code, reason),
-        };
+        self.inner.close(error_code, reason)
     }
 
     pub async fn wait_idle(&self) {
-        match &self.endpoint {
-            #[cfg(feature = "backend-quinn")]
-            ServerInner::Quinn(endpoint) => endpoint.wait_idle().await,
-            #[cfg(feature = "backend-wtransport")]
-            ServerInner::Wtransport(endpoint) => endpoint.wait_idle().await,
-        };
+        self.inner.wait_idle().await
     }
 }
 
