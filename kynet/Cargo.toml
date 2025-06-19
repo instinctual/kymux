@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 async-trait = "0.1.78"
 bytes = "1.5.0"
-js-sys = { version = "=0.3.70", optional = true }
+js-sys = { version = "=0.3.77", optional = true }
 log = "0.4.21"
 quinn = { version = "=0.11.5", optional = true }
 rustls = { version = "=0.23.13", optional = true }
@@ -21,7 +21,7 @@ thiserror = "1.0.58"
 tokio = { version = "1.36.0", features = ["fs"], optional = true }
 wasm-bindgen = { version = "0.2.87", optional = true }
 wasm-bindgen-futures = { version = "0.4.37", optional = true }
-web-sys = { version = "=0.3.70", optional = true, features = [
+web-sys = { version = "=0.3.77", optional = true, features = [
     "ReadableStream",
     "ReadableStreamByobReader",
     "ReadableStreamDefaultReader",
