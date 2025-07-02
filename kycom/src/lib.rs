@@ -41,6 +41,7 @@ pub struct KyCom {
     addr: SocketAddr,
     pending_endpoints: Arc<Mutex<EndpointMap>>,
     listen_task: JoinHandle<()>,
+    runner: Option<Runner>,
 }
 
 impl KyCom {
@@ -59,6 +60,7 @@ impl KyCom {
             addr,
             pending_endpoints,
             listen_task,
+            runner: None,
         })
     }
 
@@ -96,6 +98,35 @@ impl KyCom {
         })
     }
 
+    pub fn forward_async<Endpoint>(
+        &mut self,
+        forwarder: TcpForwarder<Endpoint>,
+    ) -> Result<KyComAddr>
+    where
+        Endpoint: kyproto::ProtocolEndpoint + Send + 'static,
+        TcpForwarder<Endpoint>: Forwarder,
+    {
+        let addr = forwarder.addr();
+
+        if self.runner.is_none() {
+            // Create on first use
+            self.runner = Some(Runner::new());
+        }
+
+        let runner = self.runner.as_mut().unwrap();
+        runner.forward_async(forwarder)?;
+        Ok(addr)
+    }
+
+    pub fn register_and_forward<Endpoint>(&mut self, endpoint: Endpoint) -> Result<KyComAddr>
+    where
+        Endpoint: kyproto::ProtocolEndpoint + Send + 'static,
+        TcpForwarder<Endpoint>: Forwarder,
+    {
+        let forwarder = self.register(endpoint)?;
+        self.forward_async(forwarder)
+    }
+
     async fn listen(
         listener: TcpListener,
         pending_endpoints: Arc<Mutex<EndpointMap>>,
@@ -130,11 +161,59 @@ impl KyCom {
 
         Ok(())
     }
+
+    pub fn stop(self) {
+        // drop self
+    }
 }
 
 impl Drop for KyCom {
     fn drop(&mut self) {
         self.listen_task.abort();
+    }
+}
+
+struct Task {
+    join_handle: JoinHandle<()>,
+}
+
+impl Drop for Task {
+    fn drop(&mut self) {
+        self.join_handle.abort();
+    }
+}
+
+struct Runner {
+    tasks: Vec<Task>,
+}
+
+impl Runner {
+    fn new() -> Self {
+        Self { tasks: Vec::new() }
+    }
+
+    fn forward_async<T>(&mut self, forwarder: T) -> Result<()>
+    where
+        T: Forwarder + Send + 'static,
+    {
+        // Clean up finished tasks
+        self.tasks.retain(|task| !task.join_handle.is_finished());
+
+        let forwarder_name = std::any::type_name::<T>()
+            .rsplit("::")
+            .next()
+            .unwrap_or("Unknown");
+        debug!("Spawning {forwarder_name} forwarder");
+
+        let join_handle = tokio::spawn(async move {
+            if let Err(err) = forwarder.forward().await {
+                info!("{forwarder_name} forwarder ended with result {err:?}");
+            }
+        });
+
+        self.tasks.push(Task { join_handle });
+
+        Ok(())
     }
 }
 
