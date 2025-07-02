@@ -6,6 +6,8 @@ pub mod ipc;
 use std::time::Duration;
 
 pub use error::{Error, Result};
+#[cfg(feature = "ipc")]
+pub use kycom;
 pub use kyproto;
 
 #[allow(dead_code)]
