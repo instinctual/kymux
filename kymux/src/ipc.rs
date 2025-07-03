@@ -1,34 +1,12 @@
 use kyproto::{AudioProtocol, MetricsClientEndpoint, ProtocolEndpoint, VideoProtocol};
-use log::info;
 use std::sync::Arc;
-use tokio::sync;
-use tokio::task::JoinHandle;
 
 use kycom::{Forwarder, TcpForwarder};
-use log::{debug, warn};
 
 use crate::{Error, Result};
 
-struct Task {
-    name: &'static str,
-    stop_tx: sync::oneshot::Sender<()>,
-    join_handle: JoinHandle<()>,
-}
-
-impl Task {
-    async fn stop(self) {
-        let _ = self.stop_tx.send(());
-
-        let ret = self.join_handle.await;
-        if let Err(err) = ret {
-            warn!("{} task ended with result: {err:?}", self.name);
-        }
-    }
-}
-
 pub struct IpcHandler {
     kycom: kycom::KyCom,
-    tasks: Vec<Task>,
 }
 
 impl IpcHandler {
@@ -36,12 +14,7 @@ impl IpcHandler {
         for port in local_ports {
             let kycom = kycom::KyCom::start_on_port(port).await;
             match kycom {
-                Ok(kycom) => {
-                    return Ok(Self {
-                        kycom,
-                        tasks: Default::default(),
-                    })
-                }
+                Ok(kycom) => return Ok(Self { kycom }),
                 Err(err) => {
                     log::warn!("Fail to set IpcHandler on port {port}: {err:?}");
                 }
@@ -50,13 +23,8 @@ impl IpcHandler {
         Err(Error::IpcNoPortAvailable)
     }
 
-    pub async fn stop(&mut self) {
-        let tasks = std::mem::take(&mut self.tasks);
-
-        for task in tasks {
-            debug!("Stopping {} forwarder", task.name);
-            task.stop().await;
-        }
+    pub fn stop(self) {
+        self.kycom.stop();
     }
 
     pub fn register_and_forward<Endpoint>(&mut self, endpoint: Endpoint) -> Result<String>
@@ -64,45 +32,11 @@ impl IpcHandler {
         Endpoint: ProtocolEndpoint + Send + 'static,
         TcpForwarder<Endpoint>: Forwarder,
     {
-        let forwarder = self.kycom.register(endpoint)?;
-        let uri = forwarder.addr().url();
-
-        self.forward(forwarder)?;
-        Ok(uri)
-    }
-
-    fn forward<T>(&mut self, forwarder: T) -> Result<()>
-    where
-        T: Forwarder + Send + 'static,
-    {
-        let forwarder_name = std::any::type_name::<T>()
-            .rsplit("::")
-            .next()
-            .unwrap_or("Unknown");
-        debug!("Spawning {} forwarder", forwarder_name);
-
-        let (stop_tx, stop_rx) = sync::oneshot::channel();
-
-        let join_handle = tokio::spawn(async move {
-            tokio::select! {
-                _ = stop_rx => {
-                    info!("Stopping {} forwarder", forwarder_name);
-                },
-                ret = forwarder.forward() => {
-                    if let Err(err) = ret {
-                        info!("{} forwarder ended with result {err:?}", forwarder_name);
-                    }
-                }
-            }
-        });
-
-        self.tasks.push(Task {
-            name: forwarder_name,
-            stop_tx,
-            join_handle,
-        });
-
-        Ok(())
+        let url = self
+            .kycom
+            .register_and_forward(endpoint)
+            .map(|addr| addr.url())?;
+        Ok(url)
     }
 }
 
@@ -122,8 +56,8 @@ impl IPCForwardableConnection {
         })
     }
 
-    pub async fn stop(&mut self) {
-        self.ipc.stop().await
+    pub fn stop(self) {
+        self.ipc.stop();
     }
 
     pub async fn closed(&self) -> Result<()> {
