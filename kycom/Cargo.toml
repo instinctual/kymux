@@ -8,8 +8,13 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.78"
 bytes = "1.4.0"
-kyproto = { version = "0.1", path = "../kyproto", features = ["tokio-rt"] }
+kyproto = { version = "0.1", path = "../kyproto", features = ["tokio-rt"], optional = true }
 kyproto-types = { version = "0.1", path = "../kyproto-types" }
 log = "0.4.20"
 tokio = { version = "1.32.0", features = ["rt-multi-thread", "io-util", "sync", "macros", "net"] }
 url = "2.5.2"
+
+[features]
+default = ["server"]
+server = ["dep:kyproto"]
+client = []

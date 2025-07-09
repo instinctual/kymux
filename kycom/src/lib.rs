@@ -5,11 +5,14 @@ use url::Url;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 
+#[cfg(feature = "client")]
 mod client;
 mod ipc;
 mod serial;
+#[cfg(feature = "server")]
 mod server;
 
+#[cfg(feature = "client")]
 pub use client::{
     InputEndpoint, IpcEndpoint, MetricsClientEndpoint, MetricsServerEndpoint, VideoClientEndpoint,
     VideoServerEndpoint,
@@ -18,6 +21,7 @@ pub use ipc::{Ipc, IpcRecv, IpcSend};
 pub use kyproto_types::av::*;
 pub use kyproto_types::input::*;
 pub use kyproto_types::metrics::*;
+#[cfg(feature = "server")]
 pub use server::{Forwarder, KyCom, TcpForwarder};
 
 pub struct KyComAddr {
