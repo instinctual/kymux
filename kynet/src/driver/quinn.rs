@@ -1,7 +1,8 @@
 use crate::cert::{Certificate, PrivateKey, RootCertStore};
 use crate::error::*;
 use crate::{
-    Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
+    Connection, ConnectionDriver, ConnectionStats, RecvStream, RecvStreamDriver, SendStream,
+    SendStreamDriver,
 };
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -188,6 +189,14 @@ impl ConnectionDriver for QuinnConnectionDriver {
 
     fn max_datagram_size(&self) -> Option<usize> {
         self.conn.max_datagram_size()
+    }
+
+    async fn stats(&self) -> ConnectionStats {
+        let stats = self.conn.stats();
+        ConnectionStats {
+            rtt: Some(stats.path.rtt),
+            packets_lost: Some(stats.path.lost_packets),
+        }
     }
 }
 

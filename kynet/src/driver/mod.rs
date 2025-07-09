@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::{KySend, KySync, RecvStream, SendStream};
+use crate::{ConnectionStats, KySend, KySync, RecvStream, SendStream};
 
 use std::fmt::Debug;
 
@@ -41,6 +41,8 @@ pub trait ConnectionDriver: Debug + KySend + KySync {
     fn close(&self, error_code: u32, reason: &str);
 
     fn max_datagram_size(&self) -> Option<usize>;
+
+    async fn stats(&self) -> ConnectionStats;
 }
 
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]

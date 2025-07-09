@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::{
-    Connection, ConnectionDriver, RecvStream, RecvStreamDriver, SendStream, SendStreamDriver,
+    Connection, ConnectionDriver, ConnectionStats, RecvStream, RecvStreamDriver, SendStream,
+    SendStreamDriver,
 };
 
 use std::cell::RefCell;
@@ -301,6 +302,14 @@ impl ConnectionDriver for WebTransportJSConnectionDriver {
     fn max_datagram_size(&self) -> Option<usize> {
         let max = self.web_transport.datagrams().max_datagram_size();
         Some(max as usize)
+    }
+
+    async fn stats(&self) -> ConnectionStats {
+        // Not implemented yet
+        ConnectionStats {
+            rtt: None,
+            packets_lost: None,
+        }
     }
 }
 

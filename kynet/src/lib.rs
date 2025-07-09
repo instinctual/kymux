@@ -12,6 +12,7 @@ use crate::driver::webtransport_js::WebTransportJSConnectionDriver;
 use crate::driver::wtransport::WTransportConnectionDriver;
 
 use std::fmt::Debug;
+use std::time::Duration;
 
 #[cfg(all(
     any(feature = "kynet-quinn", feature = "kynet-wtransport"),
@@ -171,6 +172,16 @@ impl Connection {
     pub fn max_datagram_size(&self) -> Option<usize> {
         self.driver.max_datagram_size()
     }
+
+    pub async fn stats(&self) -> ConnectionStats {
+        self.driver.stats().await
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ConnectionStats {
+    pub rtt: Option<Duration>,
+    pub packets_lost: Option<u64>,
 }
 
 #[derive(Debug)]
