@@ -312,8 +312,7 @@ impl VideoUnreliableFecProtocolSendDriver {
         let oti = encoder.get_config();
         let symbol_size = oti.symbol_size() as usize;
 
-        // div_ceil() not stabilized yet
-        let source_symbols = (kypacket_size + symbol_size - 1) / symbol_size;
+        let source_symbols = kypacket_size.div_ceil(symbol_size);
 
         // Add 30% repair packets (at least 2 packets)
         let repair_symbols = ((source_symbols as f32 * 0.3).ceil() as u32).max(2);
