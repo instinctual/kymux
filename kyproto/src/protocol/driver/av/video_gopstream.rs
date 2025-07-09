@@ -1,3 +1,66 @@
+//! This protocol opens a new QUIC stream for every GOP (group of pictures).
+//!
+//! Concretely, a new QUIC stream is started on every keyframe.
+//!
+//! The principle is to transmit a GOP reliably (with retransmissions when
+//! packets are lost, like TCP), but abandon any old GOPs whenever a new one is
+//! started.
+//!
+//! The current codec and config packet are repeated at the beginning of each
+//! QUIC stream, with an identifier so that the receiver can determine if a new
+//! one should be sent to the decoder.
+//!
+//! For example, if the producer sends these packets in sequence:
+//!  - codec1 (a codec packet)
+//!  - cfg1 (a config packet)
+//!  - a sequence of media packets: I P P P P P P I P P P
+//!  - cfg2
+//!  - a sequence of media packets: I P P P P P P
+//!  - codec2
+//!  - cfg3
+//!  - a sequence of media packets: I P P P I P P P P
+//!
+//! (I: key frame, P: non-key frame)
+//!
+//! Then the kymux server will transmit these data to the kymux client as
+//! follow:
+//!
+//! QUIC stream 1:
+//!     +-----+--------+------+---------------+
+//!     | ids | codec1 | cfg1 | I P P P P P P |
+//!     +-----+--------+------+---------------+
+//! QUIC stream 2:
+//!     +-----+--------+------+-----------+
+//!     | ids | codec1 | cfg1 | I P P P P |
+//!     +-----+--------+------+-----------+
+//! QUIC stream 3:
+//!     +-----+--------+------+-------------+
+//!     | ids | codec1 | cfg2 | I P P P P P |
+//!     +-----+--------+------+-------------+
+//! QUIC stream 4:
+//!     +-----+--------+------+---------+
+//!     | ids | codec2 | cfg3 | I P P P |
+//!     +-----+--------+------+---------+
+//! QUIC stream 5:
+//!     +-----+--------+------+-----------+
+//!     | ids | codec2 | cfg3 | I P P P P |
+//!     +-----+--------+------+-----------+
+//!
+//! The ids are three 32-bit numbers:
+//!  - the gop id, to make sure we consider GOPs in order
+//!  - the associated codec number
+//!  - the associated config number
+//!
+//! The gop id is incremented on every new keyframe. The other numbers are
+//! incremented every time a new codec or config packet (respectively) is
+//! received from the producer.
+//!
+//! The receiver uses these ids to make sure it sends a single codec or config
+//! packet at most once.
+//!
+//! Every time a new QUIC stream is opened by the server, the previous one is
+//! reset, so no more retransmissions will occur for the old GOPs.
+
 use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
 use crate::protocol::driver::av;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
@@ -12,70 +75,6 @@ use kynet::{RecvStream, SendStream};
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::sync::mpsc;
-
-/**
- * This protocol opens a new QUIC stream for every GOP (group of pictures).
- *
- * Concretely, a new QUIC stream is started on every keyframe.
- *
- * The principle is to transmit a GOP reliably (with retransmissions when
- * packets are lost, like TCP), but abandon any old GOPs whenever a new one is
- * started.
- *
- * The current codec and config packet are repeated at the beginning of each
- * QUIC stream, with an identifier so that the receiver can determine if a new
- * one should be sent to the decoder.
- *
- * For example, if the producer sends these packets in sequence:
- *  - codec1 (a codec packet)
- *  - cfg1 (a config packet)
- *  - a sequence of media packets: I P P P P P P I P P P
- *  - cfg2
- *  - a sequence of media packets: I P P P P P P
- *  - codec2
- *  - cfg3
- *  - a sequence of media packets: I P P P I P P P P
- *
- * (I: key frame, P: non-key frame)
- *
- * Then the kymux server will transmit these data to the kymux client as follow:
- *
- * QUIC stream 1:
- *     +-----+--------+------+---------------+
- *     | ids | codec1 | cfg1 | I P P P P P P |
- *     +-----+--------+------+---------------+
- * QUIC stream 2:
- *     +-----+--------+------+-----------+
- *     | ids | codec1 | cfg1 | I P P P P |
- *     +-----+--------+------+-----------+
- * QUIC stream 3:
- *     +-----+--------+------+-------------+
- *     | ids | codec1 | cfg2 | I P P P P P |
- *     +-----+--------+------+-------------+
- * QUIC stream 4:
- *     +-----+--------+------+---------+
- *     | ids | codec2 | cfg3 | I P P P |
- *     +-----+--------+------+---------+
- * QUIC stream 5:
- *     +-----+--------+------+-----------+
- *     | ids | codec2 | cfg3 | I P P P P |
- *     +-----+--------+------+-----------+
- *
- * The ids are three 32-bit numbers:
- *  - the gop id, to make sure we consider GOPs in order
- *  - the associated codec number
- *  - the associated config number
- *
- * The gop id is incremented on every new keyframe. The other numbers are
- * incremented every time a new codec or config packet (respectively) is
- * received from the producer.
- *
- * The receiver uses these ids to make sure it sends a single codec or config
- * packet at most once.
- *
- * Every time a new QUIC stream is opened by the server, the previous one is
- * reset, so no more retransmissions will occur for the old GOPs.
- */
 
 pub(crate) struct VideoGopStreamProtocolSendDriver {
     ky_channel: KyChannel,
