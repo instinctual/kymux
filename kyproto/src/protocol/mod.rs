@@ -1,26 +1,24 @@
 #![allow(unused)] // TODO remove
 
 use crate::error::ProtocolError;
-pub use crate::protocol::av::{
+use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
+use crate::router::KyChannel;
+use crate::ProtocolStats;
+
+use kyproto_types::av::{
     AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, HolePacket, HolePacketHeader,
     MediaPacket, MediaPacketHeader,
 };
-use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
-pub use crate::protocol::input::InputPacket;
-pub use crate::protocol::metrics::MetricsPacket;
-use crate::router::KyChannel;
-use crate::ProtocolStats;
+use kyproto_types::input::InputPacket;
+use kyproto_types::metrics::MetricsPacket;
 
 use async_trait::async_trait;
 use kynet::util::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-mod av;
 pub(crate) mod clock_sync;
 pub(crate) mod driver;
-mod input;
-mod metrics;
 
 pub struct ProtocolSend<T> {
     driver: Box<dyn ProtocolSendDriver<Packet = T>>,

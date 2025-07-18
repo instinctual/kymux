@@ -61,7 +61,6 @@
 //! Every time a new QUIC stream is opened by the server, the previous one is
 //! reset, so no more retransmissions will occur for the old GOPs.
 
-use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket};
 use crate::protocol::driver::av;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
@@ -74,6 +73,7 @@ use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use kynet::error::{ConnectionError, ReadExactError};
 use kynet::util::*;
 use kynet::{RecvStream, SendStream};
+use kyproto_types::av::*;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::sync::mpsc;

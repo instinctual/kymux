@@ -5,5 +5,5 @@ resolver = "2"
 members = [
     "kycom",
     "kynet",
-    "kyproto",
+    "kyproto", "kyproto-types",
 ]

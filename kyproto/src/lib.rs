@@ -15,12 +15,11 @@ use kynet::util::*;
     not(target_family = "wasm")
 ))]
 pub use connection::Server;
+pub use kyproto_types::av::*;
+pub use kyproto_types::input::*;
+pub use kyproto_types::metrics::*;
 pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
-pub use protocol::{
-    AVPacket, AVPacketHeader, AudioProtocol, CodecPacket, CodecPacketHeader, HolePacket,
-    HolePacketHeader, InputPacket, MediaPacket, MediaPacketHeader, MetricsPacket, ProtocolRecv,
-    ProtocolSend, VideoProtocol,
-};
+pub use protocol::{AudioProtocol, ProtocolRecv, ProtocolSend, VideoProtocol};
 
 pub use kynet::init_crypto;
 pub use kynet::ConnectionStats;

@@ -1,7 +1,3 @@
-use crate::protocol::av::{
-    AVPacket, AVPacketHeader, CodecPacket, HolePacket, HolePacketHeader, MediaPacket,
-    MediaPacketHeader,
-};
 use crate::protocol::driver::av;
 use crate::protocol::driver::util::seq::Sequencer;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
@@ -17,6 +13,7 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use kynet::util::*;
 use kynet::{RecvStream, SendStream};
+use kyproto_types::av::*;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::sync::mpsc;

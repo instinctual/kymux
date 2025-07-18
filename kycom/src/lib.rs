@@ -15,6 +15,9 @@ pub use client::{
     VideoServerEndpoint,
 };
 pub use ipc::{Ipc, IpcRecv, IpcSend};
+pub use kyproto_types::av::*;
+pub use kyproto_types::input::*;
+pub use kyproto_types::metrics::*;
 pub use server::{Forwarder, KyCom, TcpForwarder};
 
 pub struct KyComAddr {

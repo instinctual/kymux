@@ -222,7 +222,6 @@
 //! packets only after the GOP keyframe is sent. It will depend if we use an
 //! intra-refresh strategy or if we send keyframes often.
 
-use crate::protocol::av::{AVPacket, AVPacketHeader, CodecPacket, MediaPacket, MediaPacketHeader};
 use crate::protocol::driver::av;
 use crate::protocol::driver::util::seq::Sequencer;
 use crate::protocol::{ProtocolError, ProtocolRecvDriver, ProtocolSendDriver};
@@ -238,6 +237,7 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use kynet::util::*;
 use kynet::{RecvStream, SendStream};
+use kyproto_types::av::*;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::sync::mpsc;

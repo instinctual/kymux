@@ -1,7 +1,7 @@
 use super::{Deserializer, Serializer};
 use async_trait::async_trait;
 use bytes::BytesMut;
-use kyproto::{AVPacket, AVPacketHeader, CodecPacket, HolePacket, MediaPacket};
+use kyproto_types::av::*;
 use std::io::{ErrorKind, Result};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 

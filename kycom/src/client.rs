@@ -3,7 +3,9 @@ use crate::serial;
 use crate::KyComAddr;
 
 use async_trait::async_trait;
-use kyproto::{AVPacket, InputPacket, MetricsPacket};
+use kyproto_types::av::*;
+use kyproto_types::input::*;
+use kyproto_types::metrics::*;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use std::io::Result;
