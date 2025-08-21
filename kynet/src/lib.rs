@@ -53,7 +53,7 @@ pub mod util;
 
 pub fn init_crypto() {
     #[cfg(any(feature = "kynet-quinn", feature = "kynet-wtransport"))]
-    rustls::crypto::aws_lc_rs::default_provider()
+    rustls::crypto::ring::default_provider()
         .install_default()
         .unwrap();
 }
