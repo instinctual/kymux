@@ -13,7 +13,8 @@ use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::{self, JoinHandle};
 
-use kymux::{ipc::IPCForwardableConnection, AudioProtocol, VideoProtocol};
+use kymux::ipc::IPCForwardableConnection;
+use kyproto::{AudioProtocol, VideoProtocol};
 
 const SERVER_NAME: &str = "kymux_test";
 const PORT: u16 = 10000;
@@ -76,7 +77,7 @@ async fn create_connection() -> (IPCForwardableConnection, IPCForwardableConnect
             server_name: SERVER_NAME.into(),
         };
 
-        let connection = kymux::Connection::connect(config).await.unwrap();
+        let connection = kymux::connect(config).await.unwrap();
         IPCForwardableConnection::new(connection, 9091).await
     };
 

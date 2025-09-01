@@ -103,7 +103,7 @@ async fn main() {
         server_name: SERVER_NAME.into(),
     };
 
-    let client = kymux::Connection::connect(client_config);
+    let client = kymux::connect(client_config);
 
     // Connect
     let (server_ret, client_ret) = tokio::join!(server_accept_task, client);

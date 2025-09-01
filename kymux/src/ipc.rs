@@ -121,14 +121,14 @@ impl IpcHandler {
 }
 
 pub struct IPCForwardableConnection {
-    inner: kyproto::KyProto,
+    inner: kyproto::Connection,
     ipc: IpcHandler,
 }
 
 impl IPCForwardableConnection {
-    pub async fn new(connection: crate::Connection, local_clients_port: u16) -> Result<Self> {
+    pub async fn new(connection: kyproto::Connection, local_clients_port: u16) -> Result<Self> {
         Ok(Self {
-            inner: connection.connection,
+            inner: connection,
             ipc: IpcHandler::new(local_clients_port).await?,
         })
     }

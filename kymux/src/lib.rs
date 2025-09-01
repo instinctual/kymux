@@ -6,13 +6,7 @@ pub mod ipc;
 use std::time::Duration;
 
 pub use error::{Error, Result};
-pub use kyproto::{
-    AVPacket, AudioClientEndpoint, AudioProtocol, AudioServerEndpoint, ClockSyncClientEndpoint,
-    ClockSyncClientProtocol, ClockSyncServerEndpoint, ClockSyncServerProtocol, ConnectionStats,
-    InputEndpoint, InputPacket, KyProtoStatsProvider, MetricsClientEndpoint, MetricsPacket,
-    MetricsServerEndpoint, ProtocolEndpoint, ProtocolRecv, ProtocolSend, ProtocolStats,
-    VideoClientEndpoint, VideoProtocol, VideoServerEndpoint,
-};
+pub use kyproto;
 
 #[allow(dead_code)]
 const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
@@ -76,7 +70,7 @@ impl Server {
                 cert_chain,
                 private_key,
             } => {
-                let endpoint = kyproto::KyProto::quinn_start_server_on_addr(
+                let endpoint = kyproto::Connection::quinn_start_server_on_addr(
                     addr,
                     cert_chain.into_iter().map(|c| c.into()).collect(),
                     private_key.into(),
@@ -94,7 +88,7 @@ impl Server {
                 cert_chain,
                 private_key,
             } => {
-                let endpoint = kyproto::KyProto::wtransport_start_server_on_addr(
+                let endpoint = kyproto::Connection::wtransport_start_server_on_addr(
                     addr,
                     cert_chain.into_iter().map(|c| c.into()).collect(),
                     private_key.into(),
@@ -111,15 +105,15 @@ impl Server {
         Ok(Self { endpoint })
     }
 
-    pub async fn accept(&self) -> Result<Connection> {
-        let connection = match &self.endpoint {
+    pub async fn accept(&self) -> Result<kyproto::Connection> {
+        let kyproto = match &self.endpoint {
             #[cfg(feature = "backend-quinn")]
             ServerInner::Quinn(endpoint) => endpoint.accept().await?,
             #[cfg(feature = "backend-wtransport")]
             ServerInner::Wtransport(endpoint) => endpoint.accept().await?,
         };
 
-        Connection::new(connection)
+        Ok(kyproto)
     }
 
     pub fn close(&self, error_code: u32, reason: &str) {
@@ -141,157 +135,52 @@ impl Server {
     }
 }
 
-pub struct Connection {
-    connection: kyproto::KyProto,
-}
-
-impl Connection {
-    fn new(connection: kyproto::KyProto) -> Result<Self> {
-        Ok(Self { connection })
-    }
-
-    pub async fn closed(&self) -> Result<()> {
-        self.connection.closed().await?;
-        Ok(())
-    }
-
-    pub async fn connection_stats(&self) -> ConnectionStats {
-        self.connection.connection_stats().await
-    }
-
-    pub fn protocol_stats(&self) -> ProtocolStats {
-        self.connection.protocol_stats()
-    }
-
-    pub fn stats_provider(&self) -> KyProtoStatsProvider {
-        self.connection.stats_provider()
-    }
-
-    pub async fn connect(config: ClientConfig) -> Result<Self> {
-        let connection = match config {
-            #[cfg(feature = "backend-quinn")]
-            ClientConfig::Quic {
+pub async fn connect(config: ClientConfig) -> Result<kyproto::Connection> {
+    match config {
+        #[cfg(feature = "backend-quinn")]
+        ClientConfig::Quic {
+            addr,
+            roots,
+            server_name,
+        } => {
+            let kyproto = kyproto::Connection::quinn_connect(
                 addr,
-                roots,
-                server_name,
-            } => {
-                kyproto::KyProto::quinn_connect(
-                    addr,
-                    &server_name,
-                    roots.map(|roots| roots.into()),
-                    &kyproto::quinn::QuinnClientOptions {
-                        keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
-                        ..Default::default()
-                    },
-                )
-                .await?
-            }
-            #[cfg(feature = "backend-webtransport-js")]
-            ClientConfig::WebTransport {
-                url,
-                certificate_hash,
-            } => {
-                use kyproto::webtransport_js::{
-                    WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
-                };
-
-                let server_certificate_hashes = if let Some(certificate_hash) = certificate_hash {
-                    Some(vec![WebTransportJSHash::new_from_hex(
-                        certificate_hash.hash_algorithm,
-                        &certificate_hash.hash,
-                    )?])
-                } else {
-                    None
-                };
-
-                let options = WebTransportJSOptions {
-                    congestion_control: WebTransportJSCongestionControl::LowLatency,
-                    require_unreliable: true,
-                    server_certificate_hashes,
-                };
-
-                kyproto::KyProto::webtransport_js_connect(&url, &options).await?
-            }
-        };
-
-        Self::new(connection)
-    }
-
-    pub async fn register_video_endpoint(
-        &self,
-        id: Option<u16>,
-        video_protocol: VideoProtocol,
-    ) -> Result<VideoServerEndpoint> {
-        let endpoint = self
-            .connection
-            .register_video_endpoint(id, video_protocol)
+                &server_name,
+                roots.map(|roots| roots.into()),
+                &kyproto::quinn::QuinnClientOptions {
+                    keep_alive_interval: Some(KEEP_ALIVE_INTERVAL),
+                    ..Default::default()
+                },
+            )
             .await?;
-        Ok(endpoint)
-    }
+            Ok(kyproto)
+        }
+        #[cfg(feature = "backend-webtransport-js")]
+        ClientConfig::WebTransport {
+            url,
+            certificate_hash,
+        } => {
+            use kyproto::webtransport_js::{
+                WebTransportJSCongestionControl, WebTransportJSHash, WebTransportJSOptions,
+            };
 
-    pub fn connect_video_endpoint(
-        &self,
-        id: u16,
-        video_protocol: VideoProtocol,
-    ) -> Result<VideoClientEndpoint> {
-        let endpoint = self.connection.connect_video_endpoint(id, video_protocol)?;
-        Ok(endpoint)
-    }
+            let server_certificate_hashes = if let Some(certificate_hash) = certificate_hash {
+                Some(vec![WebTransportJSHash::new_from_hex(
+                    certificate_hash.hash_algorithm,
+                    &certificate_hash.hash,
+                )?])
+            } else {
+                None
+            };
 
-    pub async fn register_audio_endpoint(
-        &self,
-        id: Option<u16>,
-        audio_protocol: AudioProtocol,
-    ) -> Result<AudioServerEndpoint> {
-        let endpoint = self
-            .connection
-            .register_audio_endpoint(id, audio_protocol)
-            .await?;
-        Ok(endpoint)
-    }
+            let options = WebTransportJSOptions {
+                congestion_control: WebTransportJSCongestionControl::LowLatency,
+                require_unreliable: true,
+                server_certificate_hashes,
+            };
 
-    pub fn connect_audio_endpoint(
-        &self,
-        id: u16,
-        audio_protocol: AudioProtocol,
-    ) -> Result<AudioClientEndpoint> {
-        let endpoint = self.connection.connect_audio_endpoint(id, audio_protocol)?;
-        Ok(endpoint)
-    }
-
-    pub async fn register_input_endpoint(&self, id: Option<u16>) -> Result<InputEndpoint> {
-        let endpoint = self.connection.register_input_endpoint(id).await?;
-        Ok(endpoint)
-    }
-
-    pub fn connect_input_endpoint(&self, id: u16) -> Result<InputEndpoint> {
-        let endpoint = self.connection.connect_input_endpoint(id)?;
-        Ok(endpoint)
-    }
-
-    pub async fn register_clock_sync_endpoint(
-        &self,
-        id: Option<u16>,
-    ) -> Result<ClockSyncServerEndpoint> {
-        let endpoint = self.connection.register_clock_sync_endpoint(id).await?;
-        Ok(endpoint)
-    }
-
-    pub fn connect_clock_sync_endpoint(&self, id: u16) -> Result<ClockSyncClientEndpoint> {
-        let endpoint = self.connection.connect_clock_sync_endpoint(id)?;
-        Ok(endpoint)
-    }
-
-    pub async fn register_metrics_endpoint(
-        &self,
-        id: Option<u16>,
-    ) -> Result<MetricsServerEndpoint> {
-        let endpoint = self.connection.register_metrics_endpoint(id).await?;
-        Ok(endpoint)
-    }
-
-    pub fn connect_metrics_endpoint(&self, id: u16) -> Result<MetricsClientEndpoint> {
-        let endpoint = self.connection.connect_metrics_endpoint(id)?;
-        Ok(endpoint)
+            let kyproto = kyproto::Connection::webtransport_js_connect(&url, &options).await?;
+            Ok(kyproto)
+        }
     }
 }
