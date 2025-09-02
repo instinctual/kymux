@@ -1,9 +1,6 @@
-use std::mem;
-use std::ops::DerefMut;
-use std::sync::Mutex;
-
 use kyproto::{AudioProtocol, MetricsClientEndpoint, ProtocolEndpoint, VideoProtocol};
 use log::info;
+use std::sync::Arc;
 use tokio::sync;
 use tokio::task::JoinHandle;
 
@@ -30,8 +27,8 @@ impl Task {
 }
 
 pub struct IpcHandler {
-    pub(crate) kycom: kycom::KyCom,
-    tasks: Mutex<Vec<Task>>,
+    kycom: kycom::KyCom,
+    tasks: Vec<Task>,
 }
 
 impl IpcHandler {
@@ -53,21 +50,16 @@ impl IpcHandler {
         Err(Error::IpcNoPortAvailable)
     }
 
-    pub async fn stop(&self) -> Result<()> {
-        let tasks = {
-            let mut tasks = self.tasks.lock()?;
-            mem::take(tasks.deref_mut())
-        };
+    pub async fn stop(&mut self) {
+        let tasks = std::mem::take(&mut self.tasks);
 
-        for t in tasks {
-            debug!("Stopping {} forwarder", t.name);
-            t.stop().await;
+        for task in tasks {
+            debug!("Stopping {} forwarder", task.name);
+            task.stop().await;
         }
-
-        Ok(())
     }
 
-    pub fn register_and_forward<Endpoint>(&self, endpoint: Endpoint) -> Result<String>
+    pub fn register_and_forward<Endpoint>(&mut self, endpoint: Endpoint) -> Result<String>
     where
         Endpoint: ProtocolEndpoint + Send + 'static,
         TcpForwarder<Endpoint>: Forwarder,
@@ -79,7 +71,7 @@ impl IpcHandler {
         Ok(uri)
     }
 
-    fn forward<T>(&self, forwarder: T) -> Result<()>
+    fn forward<T>(&mut self, forwarder: T) -> Result<()>
     where
         T: Forwarder + Send + 'static,
     {
@@ -104,8 +96,7 @@ impl IpcHandler {
             }
         });
 
-        let mut tasks = self.tasks.lock()?;
-        tasks.push(Task {
+        self.tasks.push(Task {
             name: forwarder_name,
             stop_tx,
             join_handle,
@@ -116,13 +107,13 @@ impl IpcHandler {
 }
 
 pub struct IPCForwardableConnection {
-    inner: kyproto::Connection,
+    inner: Arc<kyproto::Connection>,
     ipc: IpcHandler,
 }
 
 impl IPCForwardableConnection {
     pub async fn new(
-        connection: kyproto::Connection,
+        connection: Arc<kyproto::Connection>,
         local_ports: std::ops::Range<u16>,
     ) -> Result<Self> {
         Ok(Self {
@@ -131,7 +122,7 @@ impl IPCForwardableConnection {
         })
     }
 
-    pub async fn stop(&self) -> Result<()> {
+    pub async fn stop(&mut self) {
         self.ipc.stop().await
     }
 
@@ -141,7 +132,7 @@ impl IPCForwardableConnection {
     }
 
     pub async fn register_and_forward_video_endpoint(
-        &self,
+        &mut self,
         id: Option<u16>,
         video_protocol: VideoProtocol,
     ) -> Result<(u16, String)> {
@@ -156,7 +147,7 @@ impl IPCForwardableConnection {
     }
 
     pub fn connect_and_forward_video_endpoint(
-        &self,
+        &mut self,
         id: u16,
         video_protocol: VideoProtocol,
     ) -> Result<String> {
@@ -167,7 +158,7 @@ impl IPCForwardableConnection {
     }
 
     pub async fn register_and_forward_audio_endpoint(
-        &self,
+        &mut self,
         id: Option<u16>,
         audio_protocol: AudioProtocol,
     ) -> Result<(u16, String)> {
@@ -182,7 +173,7 @@ impl IPCForwardableConnection {
     }
 
     pub fn connect_and_forward_audio_endpoint(
-        &self,
+        &mut self,
         id: u16,
         audio_protocol: AudioProtocol,
     ) -> Result<String> {
@@ -193,7 +184,7 @@ impl IPCForwardableConnection {
     }
 
     pub async fn register_and_forward_input_endpoint(
-        &self,
+        &mut self,
         id: Option<u16>,
     ) -> Result<(u16, String)> {
         let endpoint = self.inner.register_input_endpoint(id).await?;
@@ -203,14 +194,14 @@ impl IPCForwardableConnection {
         Ok((id, uri))
     }
 
-    pub fn connect_and_forward_input_endpoint(&self, id: u16) -> Result<String> {
+    pub fn connect_and_forward_input_endpoint(&mut self, id: u16) -> Result<String> {
         let endpoint = self.inner.connect_input_endpoint(id)?;
 
         let uri = self.ipc.register_and_forward(endpoint)?;
         Ok(uri)
     }
 
-    pub fn connect_metrics_endpoint(&self, id: u16) -> Result<MetricsClientEndpoint> {
+    pub fn connect_metrics_endpoint(&mut self, id: u16) -> Result<MetricsClientEndpoint> {
         Ok(self.inner.connect_metrics_endpoint(id)?)
     }
 }

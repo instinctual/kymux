@@ -1,4 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -67,6 +68,7 @@ async fn create_connection() -> (IPCForwardableConnection, IPCForwardableConnect
 
         let server = kymux::Server::new(config).await.unwrap();
         let connection = server.accept().await.unwrap();
+        let connection = Arc::new(connection);
         IPCForwardableConnection::new(connection, 9090..9091).await
     };
 
@@ -78,6 +80,7 @@ async fn create_connection() -> (IPCForwardableConnection, IPCForwardableConnect
         };
 
         let connection = kymux::connect(config).await.unwrap();
+        let connection = Arc::new(connection);
         IPCForwardableConnection::new(connection, 9091..9092).await
     };
 

@@ -1,4 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 use std::time::Duration;
 
 use kymux::ipc::IPCForwardableConnection;
@@ -87,6 +88,7 @@ async fn main() {
     let server_accept_task = async move {
         let server = kymux::Server::new(server_config).await.unwrap();
         let connection = server.accept().await.unwrap();
+        let connection = Arc::new(connection);
         IPCForwardableConnection::new(connection, 9091..9092)
             .await
             .unwrap()
@@ -107,9 +109,10 @@ async fn main() {
 
     // Connect
     let (server_ret, client_ret) = tokio::join!(server_accept_task, client);
-    let server = server_ret;
+    let mut server = server_ret;
     let client = client_ret.unwrap();
-    let client = IPCForwardableConnection::new(client, 9092..9093)
+    let client = Arc::new(client);
+    let mut client = IPCForwardableConnection::new(client, 9092..9093)
         .await
         .unwrap();
 
