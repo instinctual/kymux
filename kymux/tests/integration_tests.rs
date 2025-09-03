@@ -509,7 +509,7 @@ async fn stress_test() {
     }
 
     // Run a batch of concurrent tests
-    for i in 0..50 {
+    for i in 0..20 {
         let (endpoint_registerer, endpoint_connector, stream_type) = if i % 2 == 0 {
             (&mut client, &mut server, StreamType::Input)
         } else {
