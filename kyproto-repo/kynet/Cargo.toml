@@ -1,0 +1,69 @@
+[package]
+name = "kynet"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+async-trait = "0.1.78"
+bytes = "1.5.0"
+js-sys = { version = "=0.3.77", optional = true }
+log = "0.4.21"
+quinn = { version = "=0.11.8", optional = true }
+quinn-proto = { version = "=0.11.12", optional = true }
+rustls = { version = "=0.23.31", optional = true, default-features = false, features = ["logging", "std", "tls12"] }
+rustls-native-certs = { version = "=0.8.0", optional = true }
+rustls-pemfile = { version = "2.1.3", optional = true }
+thiserror = "1.0.58"
+tokio = { version = "1.47.1", features = ["fs"], optional = true }
+wasm-bindgen = { version = "0.2.87", optional = true }
+wasm-bindgen-futures = { version = "0.4.37", optional = true }
+web-sys = { version = "=0.3.77", optional = true, features = [
+    "ReadableStream",
+    "ReadableStreamByobReader",
+    "ReadableStreamDefaultReader",
+    "ReadableStreamGetReaderOptions",
+    "ReadableStreamReaderMode",
+    "WebTransport",
+    "WebTransportBidirectionalStream",
+    "WebTransportCloseInfo",
+    "WebTransportCongestionControl",
+    "WebTransportDatagramDuplexStream",
+    "WebTransportHash",
+    "WebTransportOptions",
+    "WebTransportReceiveStream",
+    "WebTransportSendStream",
+    "WritableStream",
+    "WritableStreamDefaultWriter",
+] }
+wtransport = { version = "=0.6.1", features = ["quinn"], optional = true }
+wtransport-proto = { version = "=0.6.1", optional = true }
+
+# https://doc.rust-lang.org/cargo/reference/features.html#optional-dependencies
+[features]
+default = []
+kynet-quinn = [
+    "dep:quinn",
+    "dep:quinn-proto",
+    "dep:rustls",
+    "dep:rustls-pemfile",
+    "tokio/fs",
+]
+kynet-webtransport-js = [
+    "dep:js-sys",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:web-sys",
+]
+kynet-wtransport = [
+    "dep:wtransport",
+    "dep:wtransport-proto",
+    "dep:rustls",
+    "dep:rustls-pemfile",
+    "dep:rustls-native-certs",
+    "tokio/fs",
+]

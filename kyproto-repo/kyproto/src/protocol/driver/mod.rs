@@ -1,0 +1,45 @@
+use crate::error::ProtocolError;
+use crate::router;
+
+use async_trait::async_trait;
+use kynet::error::*;
+use kynet::util::*;
+
+pub(crate) mod av;
+pub(crate) mod input;
+pub(crate) mod metrics;
+pub(crate) mod util;
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+pub(crate) trait ProtocolSendDriver: KySend {
+    type Packet;
+
+    async fn send(&mut self, packet: Self::Packet) -> Result<(), ProtocolError>;
+}
+
+#[cfg_attr(target_family = "wasm", async_trait(?Send))]
+#[cfg_attr(not(target_family = "wasm"), async_trait)]
+pub(crate) trait ProtocolRecvDriver: KySend {
+    type Packet;
+
+    async fn recv(&mut self) -> Result<Option<Self::Packet>, ProtocolError>;
+}
+
+macro_rules! impl_protocol_error_from {
+    ($t:ty) => {
+        impl From<$t> for ProtocolError {
+            fn from(value: $t) -> Self {
+                Self(format!("{value:?}"))
+            }
+        }
+    };
+}
+
+impl_protocol_error_from!(ConnectionError);
+impl_protocol_error_from!(SendDatagramError);
+impl_protocol_error_from!(ReadError);
+impl_protocol_error_from!(ReadExactError);
+impl_protocol_error_from!(WriteError);
+impl_protocol_error_from!(ClosedStreamError);
+impl_protocol_error_from!(router::RouterError);

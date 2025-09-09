@@ -1,0 +1,42 @@
+use thiserror::Error;
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("connection error: {0}")]
+pub struct ConnectionError(pub String);
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("send datagram error: {0}")]
+pub struct SendDatagramError(pub String);
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("read error: {0}")]
+pub struct ReadError(pub String);
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+pub enum ReadExactError {
+    #[error("read exact finished early ({0} bytes read)")]
+    FinishedEarly(usize),
+    #[error("read error")]
+    ReadError(#[from] ReadError),
+}
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("write error: {0}")]
+pub struct WriteError(pub String);
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("closed stream")]
+pub struct ClosedStreamError;
+
+impl From<std::io::Error> for ConnectionError {
+    fn from(value: std::io::Error) -> Self {
+        Self(value.to_string())
+    }
+}
+
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("decode hex error")]
+pub enum DecodeHexError {
+    OddLength,
+    ParseInt(#[from] std::num::ParseIntError),
+}
