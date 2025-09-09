@@ -3,6 +3,10 @@
 resolver = "2"
 
 members = [
+    "kycom",
     "kymux",
     "kymux_client",
+    "kynet",
+    "kyproto",
+    "kyproto-types",
 ]

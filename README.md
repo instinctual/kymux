@@ -33,6 +33,31 @@ Multiples parts are involved:
 * [kymux](kymux): The `kymux` library that handle the Quic connection and the interaction with `Local Kymux client`.
 * [kymux_client](kymux_client): A small library that can be used by components to create a `Local Kymux client`.
 * [kymux/examples](kymux/examples): A complete example that uses [kymux](kymux) to create a Quic connection, create endpoint and uses [kymux_client](kymux_client) to produce and consume data.
+* [kynet](kynet): A network transport API for QUIC and WebTranrpot
+* [kyproto](kyproto): A media transport API to transmit video, audio and input
+  packets
+* [kycom](kycom): An IPC component to expose kyproto endpoints over a local IPC
+  (TCP) connection
+
+```
+        Desktop      Browser
+       (non-WASM)    (WASM)
+           ||          ||
+           \/          ||
+        +-------+      ||
+   IPC  | kycom |      ||
+        +-------+      ||
+            |          ||
+            v          \/
+          +---------------+
+          |    kyproto    |  media transport API
+          +---------------+
+                  |
+                  v
+          +---------------+
+          |     kynet     |  network transport API
+          +---------------+
+```
 
 ## Connection workflow
 
