@@ -62,7 +62,7 @@ impl<T: Send + 'static> ProtocolRecvDriver for IpcRecv<T> {
     }
 }
 
-pub(crate) fn create_send_protocol<T>(
+pub fn create_send_protocol<T>(
     writer: impl AsyncWrite + Send + Unpin + 'static,
     serializer: impl Serializer<Packet = T> + Send + 'static,
 ) -> ProtocolSend<T>
@@ -73,7 +73,7 @@ where
     ProtocolSend::new(driver)
 }
 
-pub(crate) fn create_recv_protocol<T>(
+pub fn create_recv_protocol<T>(
     reader: impl AsyncRead + Send + Unpin + 'static,
     deserializer: impl Deserializer<Packet = T> + Send + 'static,
 ) -> ProtocolRecv<T>
@@ -84,7 +84,7 @@ where
     ProtocolRecv::new(driver)
 }
 
-pub(crate) fn create_bi_protocol<TX, RX>(
+pub fn create_bi_protocol<TX, RX>(
     tcp: TcpStream,
     serializer: impl Serializer<Packet = TX> + Send + 'static,
     deserializer: impl Deserializer<Packet = RX> + Send + 'static,

@@ -8,8 +8,8 @@ use log::{debug, error, info, warn};
 
 #[cfg(feature = "client")]
 mod client;
-mod ipc;
-mod serial;
+pub mod ipc;
+pub mod serial;
 #[cfg(feature = "server")]
 mod server;
 
