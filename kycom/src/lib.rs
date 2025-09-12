@@ -1,5 +1,6 @@
 use std::io::{Error, ErrorKind, Result};
 use std::net::SocketAddr;
+use std::str::FromStr;
 use url::Url;
 
 #[allow(unused)]
@@ -81,6 +82,14 @@ impl KyComAddr {
         })?;
 
         Ok(Self { addr, endpoint_id })
+    }
+}
+
+impl FromStr for KyComAddr {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::parse(s)
     }
 }
 
