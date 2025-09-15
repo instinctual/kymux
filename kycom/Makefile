@@ -1,5 +1,5 @@
 build-server:
-	cargo build
+	cargo build --features=server
 
 build-client:
-	cargo build --features=client --no-default-features
+	cargo build --features=client
