@@ -123,7 +123,11 @@ impl ProtocolSendDriver for VideoGopStreamProtocolSendDriver {
                 } else {
                     if packet.header.is_key {
                         // Start a new stream
-                        let mut new_stream = self.ky_channel.open_uni().await?;
+                        let mut new_stream = self
+                            .ky_channel
+                            .open_uni()
+                            .await
+                            .map_err(ProtocolError::new)?;
 
                         // First write the current codec and config packets
                         // numbers. Since they are repeated on each stream,
@@ -143,7 +147,10 @@ impl ProtocolSendDriver for VideoGopStreamProtocolSendDriver {
                         buf.extend_from_slice(&config_packet.header.serialize());
                         buf.extend_from_slice(&config_packet.payload);
 
-                        new_stream.write_all(&buf).await?;
+                        new_stream
+                            .write_all(&buf)
+                            .await
+                            .map_err(ProtocolError::new)?;
 
                         if let Some(mut old_stream) = self.current_stream.replace(new_stream) {
                             if let Err(err) = old_stream.close().await {
@@ -153,8 +160,14 @@ impl ProtocolSendDriver for VideoGopStreamProtocolSendDriver {
                     }
 
                     if let Some(stream) = &mut self.current_stream {
-                        stream.write_all(&packet.header.serialize()).await?;
-                        stream.write_all(&packet.payload).await?;
+                        stream
+                            .write_all(&packet.header.serialize())
+                            .await
+                            .map_err(ProtocolError::new)?;
+                        stream
+                            .write_all(&packet.payload)
+                            .await
+                            .map_err(ProtocolError::new)?;
                     } else {
                         warn!(
                             "Unexpected missing current stream, a key packet has not been received"
@@ -226,8 +239,10 @@ impl VideoGopStreamProtocolRecvDriver {
         tx: mpsc::Sender<RecvMsg>,
     ) -> Result<(), ProtocolError> {
         loop {
-            let recv = ky_channel.accept_uni().await?;
-            tx.send(RecvMsg::NewStream(recv)).await?;
+            let recv = ky_channel.accept_uni().await.map_err(ProtocolError::new)?;
+            tx.send(RecvMsg::NewStream(recv))
+                .await
+                .map_err(ProtocolError::new)?;
         }
     }
 
@@ -236,7 +251,9 @@ impl VideoGopStreamProtocolRecvDriver {
         tx: mpsc::Sender<RecvMsg>,
     ) -> Result<(), ProtocolError> {
         let mut ids = [0; 12];
-        recv.read_exact(&mut ids).await?;
+        recv.read_exact(&mut ids)
+            .await
+            .map_err(ProtocolError::new)?;
         let id = BigEndian::read_u32(&ids[..4]);
         let codec_gen = BigEndian::read_u32(&ids[4..8]);
         let config_gen = BigEndian::read_u32(&ids[8..]);
@@ -248,7 +265,8 @@ impl VideoGopStreamProtocolRecvDriver {
                 config_gen,
             },
         })
-        .await?;
+        .await
+        .map_err(ProtocolError::new)?;
         Ok(())
     }
 
@@ -258,7 +276,10 @@ impl VideoGopStreamProtocolRecvDriver {
         gop_id: u32,
     ) -> Result<(), ProtocolError> {
         while let Some(packet) = av::read_packet(&mut recv).await? {
-            tx.send(RecvMsg::NewPacket { packet, gop_id }).await?;
+            tx.send(RecvMsg::NewPacket { packet, gop_id })
+                .await
+                .map_err(ProtocolError::new)
+                .map_err(ProtocolError::new)?;
         }
         Ok(())
     }

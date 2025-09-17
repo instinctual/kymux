@@ -14,7 +14,7 @@ pub(crate) struct ReliableProtocolSendDriver {
 
 impl ReliableProtocolSendDriver {
     pub(crate) async fn start(ky_channel: KyChannel) -> Result<Self, ProtocolError> {
-        let send = ky_channel.open_uni().await?;
+        let send = ky_channel.open_uni().await.map_err(ProtocolError::new)?;
         Ok(Self { ky_channel, send })
     }
 }
@@ -28,8 +28,14 @@ impl ProtocolSendDriver for ReliableProtocolSendDriver {
         let size =
             u16::try_from(packet.payload.len()).expect("Input packet size must fit in 16 bits");
 
-        self.send.write_all(&size.to_be_bytes()).await?;
-        self.send.write_all(&packet.payload).await?;
+        self.send
+            .write_all(&size.to_be_bytes())
+            .await
+            .map_err(ProtocolError::new)?;
+        self.send
+            .write_all(&packet.payload)
+            .await
+            .map_err(ProtocolError::new)?;
 
         Ok(())
     }
@@ -42,7 +48,7 @@ pub(crate) struct ReliableProtocolRecvDriver {
 
 impl ReliableProtocolRecvDriver {
     pub(crate) async fn start(mut ky_channel: KyChannel) -> Result<Self, ProtocolError> {
-        let recv = ky_channel.accept_uni().await?;
+        let recv = ky_channel.accept_uni().await.map_err(ProtocolError::new)?;
         Ok(Self { ky_channel, recv })
     }
 }
@@ -54,11 +60,17 @@ impl ProtocolRecvDriver for ReliableProtocolRecvDriver {
 
     async fn recv(&mut self) -> Result<Option<MetricsPacket>, ProtocolError> {
         let mut buf = [0; 2];
-        self.recv.read_exact(&mut buf).await?;
+        self.recv
+            .read_exact(&mut buf)
+            .await
+            .map_err(ProtocolError::new)?;
         let size = u16::from_be_bytes(buf);
 
         let mut buf = BytesMut::zeroed(size as usize);
-        self.recv.read_exact(&mut buf).await?;
+        self.recv
+            .read_exact(&mut buf)
+            .await
+            .map_err(ProtocolError::new)?;
         let payload = buf.freeze();
 
         let packet = MetricsPacket { payload };

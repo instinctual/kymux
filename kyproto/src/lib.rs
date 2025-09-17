@@ -76,7 +76,10 @@ impl ProtocolEndpoint for VideoServerEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         protocol::start_video_protocol_send(
             self.ky_channel,
             self.video_protocol,
@@ -104,7 +107,10 @@ impl ProtocolEndpoint for VideoClientEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         protocol::start_video_protocol_recv(
             self.ky_channel,
             self.video_protocol,
@@ -132,7 +138,10 @@ impl ProtocolEndpoint for AudioServerEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         protocol::start_audio_protocol_send(
             self.ky_channel,
             self.audio_protocol,
@@ -160,7 +169,10 @@ impl ProtocolEndpoint for AudioClientEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         protocol::start_audio_protocol_recv(
             self.ky_channel,
             self.audio_protocol,
@@ -186,7 +198,10 @@ impl ProtocolEndpoint for InputEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         protocol::start_input_protocol(self.ky_channel).await
     }
 }
@@ -207,7 +222,10 @@ impl ProtocolEndpoint for ClockSyncServerEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         Ok(ClockSyncServerProtocol::new(self.ky_channel))
     }
 }
@@ -228,7 +246,10 @@ impl ProtocolEndpoint for ClockSyncClientEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         Ok(ClockSyncClientProtocol::new(self.ky_channel))
     }
 }
@@ -249,7 +270,10 @@ impl ProtocolEndpoint for MetricsServerEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         protocol::start_metrics_protocol_send(self.ky_channel).await
     }
 }
@@ -270,7 +294,10 @@ impl ProtocolEndpoint for MetricsClientEndpoint {
     }
 
     async fn ready(self) -> Result<Self::Protocol, ProtocolError> {
-        self.ready_notifier.ready().await?;
+        self.ready_notifier
+            .ready()
+            .await
+            .map_err(ProtocolError::new)?;
         protocol::start_metrics_protocol_recv(self.ky_channel).await
     }
 }
@@ -428,9 +455,15 @@ impl Connection {
         video_protocol: VideoProtocol,
     ) -> Result<VideoServerEndpoint, ProtocolError> {
         let id = self.get_endpoint_id(id);
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        self.control.register_endpoint(id).await?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        self.control
+            .register_endpoint(id)
+            .await
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let protocol_stats = self.protocol_stats.clone();
         let endpoint = VideoServerEndpoint {
             id,
@@ -447,8 +480,11 @@ impl Connection {
         id: u16,
         video_protocol: VideoProtocol,
     ) -> Result<VideoClientEndpoint, ProtocolError> {
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let protocol_stats = self.protocol_stats.clone();
         let endpoint = VideoClientEndpoint {
             id,
@@ -466,9 +502,15 @@ impl Connection {
         audio_protocol: AudioProtocol,
     ) -> Result<AudioServerEndpoint, ProtocolError> {
         let id = self.get_endpoint_id(id);
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        self.control.register_endpoint(id).await?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        self.control
+            .register_endpoint(id)
+            .await
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let protocol_stats = self.protocol_stats.clone();
         let endpoint = AudioServerEndpoint {
             id,
@@ -485,8 +527,11 @@ impl Connection {
         id: u16,
         audio_protocol: AudioProtocol,
     ) -> Result<AudioClientEndpoint, ProtocolError> {
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let protocol_stats = self.protocol_stats.clone();
         let endpoint = AudioClientEndpoint {
             id,
@@ -503,9 +548,15 @@ impl Connection {
         id: Option<u16>,
     ) -> Result<InputEndpoint, ProtocolError> {
         let id = self.get_endpoint_id(id);
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        self.control.register_endpoint(id).await?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        self.control
+            .register_endpoint(id)
+            .await
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let endpoint = InputEndpoint {
             id,
             ready_notifier,
@@ -515,8 +566,11 @@ impl Connection {
     }
 
     pub fn connect_input_endpoint(&self, id: u16) -> Result<InputEndpoint, ProtocolError> {
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let endpoint = InputEndpoint {
             id,
             ready_notifier,
@@ -530,9 +584,15 @@ impl Connection {
         id: Option<u16>,
     ) -> Result<ClockSyncServerEndpoint, ProtocolError> {
         let id = self.get_endpoint_id(id);
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        self.control.register_endpoint(id).await?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        self.control
+            .register_endpoint(id)
+            .await
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let endpoint = ClockSyncServerEndpoint {
             id,
             ready_notifier,
@@ -545,8 +605,11 @@ impl Connection {
         &self,
         id: u16,
     ) -> Result<ClockSyncClientEndpoint, ProtocolError> {
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let endpoint = ClockSyncClientEndpoint {
             id,
             ready_notifier,
@@ -560,9 +623,15 @@ impl Connection {
         id: Option<u16>,
     ) -> Result<MetricsServerEndpoint, ProtocolError> {
         let id = self.get_endpoint_id(id);
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        self.control.register_endpoint(id).await?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        self.control
+            .register_endpoint(id)
+            .await
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let endpoint = MetricsServerEndpoint {
             id,
             ready_notifier,
@@ -575,8 +644,11 @@ impl Connection {
         &self,
         id: u16,
     ) -> Result<MetricsClientEndpoint, ProtocolError> {
-        let ready_notifier = self.control.register_ready_notifier(id)?;
-        let ky_channel = self.router.register(id)?;
+        let ready_notifier = self
+            .control
+            .register_ready_notifier(id)
+            .map_err(ProtocolError::new)?;
+        let ky_channel = self.router.register(id).map_err(ProtocolError::new)?;
         let endpoint = MetricsClientEndpoint {
             id,
             ready_notifier,

@@ -20,14 +20,16 @@ pub(crate) async fn read_packet(recv: &mut RecvStream) -> Result<Option<AVPacket
             return Ok(None);
         }
     }
-    res?;
+    res.map_err(ProtocolError::new)?;
 
     let header = AVPacketHeader::deserialize(&header);
     let packet = match header {
         AVPacketHeader::Media(header) => {
             let mut buf = BytesMut::zeroed(header.size as usize);
 
-            recv.read_exact(&mut buf).await?;
+            recv.read_exact(&mut buf)
+                .await
+                .map_err(ProtocolError::new)?;
 
             AVPacket::Media(MediaPacket {
                 header,

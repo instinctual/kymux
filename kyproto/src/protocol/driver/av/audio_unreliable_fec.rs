@@ -38,7 +38,7 @@ impl AudioUnreliableFecProtocolSendDriver {
         ky_channel: KyChannel,
         _protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<Self, ProtocolError> {
-        let stream = ky_channel.open_uni().await?;
+        let stream = ky_channel.open_uni().await.map_err(ProtocolError::new)?;
         Ok(Self {
             ky_channel,
             stream,
@@ -90,7 +90,10 @@ impl AudioUnreliableFecProtocolSendDriver {
 
             debug!("send datagram {kypacket_seq}:{payload_id:?}");
 
-            self.ky_channel.send_datagram(buf.freeze()).await?;
+            self.ky_channel
+                .send_datagram(buf.freeze())
+                .await
+                .map_err(ProtocolError::new)?;
         }
 
         Ok(())
@@ -112,7 +115,10 @@ impl ProtocolSendDriver for AudioUnreliableFecProtocolSendDriver {
                 buf.put_u32(0); // meaningless
                 buf.put(&packet.header.serialize()[..]);
                 info!("WRITE codec packet");
-                self.stream.write_all(&buf).await?;
+                self.stream
+                    .write_all(&buf)
+                    .await
+                    .map_err(ProtocolError::new)?;
             }
             AVPacket::Media(packet) => {
                 if packet.header.is_config {
@@ -125,7 +131,10 @@ impl ProtocolSendDriver for AudioUnreliableFecProtocolSendDriver {
                     buf.put_u32(self.kypacket_seq);
                     buf.put(&packet.header.serialize()[..]);
                     buf.put(&packet.payload[..]);
-                    self.stream.write_all(&buf).await?;
+                    self.stream
+                        .write_all(&buf)
+                        .await
+                        .map_err(ProtocolError::new)?;
                 } else {
                     self.send_datagrams(packet).await?;
                 }
@@ -173,7 +182,7 @@ impl AudioUnreliableFecProtocolRecvDriver {
         mut ky_channel: KyChannel,
         protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<Self, ProtocolError> {
-        let stream = ky_channel.accept_uni().await?;
+        let stream = ky_channel.accept_uni().await.map_err(ProtocolError::new)?;
 
         let (tx, rx) = mpsc::channel(16);
         let (tx_client, rx_client) = mpsc::channel(16);
@@ -223,7 +232,10 @@ impl AudioUnreliableFecProtocolRecvDriver {
     ) -> Result<(), ProtocolError> {
         loop {
             let mut seqs = [0; 4];
-            stream.read_exact(&mut seqs).await?;
+            stream
+                .read_exact(&mut seqs)
+                .await
+                .map_err(ProtocolError::new)?;
             let raw_kypacket_seq = BigEndian::read_u32(&seqs);
 
             let packet = av::read_packet(&mut stream)
@@ -234,7 +246,8 @@ impl AudioUnreliableFecProtocolRecvDriver {
                 packet,
                 raw_kypacket_seq,
             }))
-            .await?;
+            .await
+            .map_err(ProtocolError::new)?;
         }
     }
 
@@ -243,7 +256,10 @@ impl AudioUnreliableFecProtocolRecvDriver {
         tx: mpsc::Sender<RecvMsg>,
     ) -> Result<(), ProtocolError> {
         loop {
-            let mut datagram = ky_channel.recv_datagram().await?;
+            let mut datagram = ky_channel
+                .recv_datagram()
+                .await
+                .map_err(ProtocolError::new)?;
             assert!(datagram.len() >= DATAGRAM_HEADER_SIZE);
             let _endpoint_id = datagram.get_u16();
             let raw_kypacket_seq = datagram.get_u32();
@@ -262,7 +278,8 @@ impl AudioUnreliableFecProtocolRecvDriver {
                 oti,
                 payload_id,
             }))
-            .await?;
+            .await
+            .map_err(ProtocolError::new)?;
         }
     }
 
@@ -286,7 +303,7 @@ impl AudioUnreliableFecProtocolRecvDriver {
                                 debug!("===== SEND codec packet to client");
                                 frame_size = Some(packet.header.frame_size);
                                 assert!(frame_size.unwrap() > 0);
-                                tx_client.send(msg.packet).await?;
+                                tx_client.send(msg.packet).await.map_err(ProtocolError::new)?;
                                 continue;
                             }
 
@@ -362,12 +379,12 @@ impl AudioUnreliableFecProtocolRecvDriver {
                                 missing_audio_samples,
                             },
                         });
-                        tx_client.send(hole).await?;
+                        tx_client.send(hole).await.map_err(ProtocolError::new)?;
                     }
 
                     debug!("===== SEND kypacket {kypacket_seq} to client");
                     next_kypacket_seq = kypacket_seq + 1;
-                    tx_client.send(packet).await?;
+                    tx_client.send(packet).await.map_err(ProtocolError::new)?;
                     deadline = None;
                 }
             }

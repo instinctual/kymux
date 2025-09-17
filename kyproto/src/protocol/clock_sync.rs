@@ -63,29 +63,32 @@ impl ClockSyncClientProtocol {
         buf.put_u16(self.ky_channel.endpoint_id());
         buf.put_u32(req_id);
 
-        let t1 = clock::now_micros()?;
+        let t1 = clock::now_micros().map_err(ProtocolError::new)?;
         buf.put_i64(t1);
 
-        self.ky_channel.send_datagram(buf.freeze()).await?;
+        self.ky_channel
+            .send_datagram(buf.freeze())
+            .await
+            .map_err(ProtocolError::new)?;
 
         let deadline = t1 + 200000; // 200 ms timeout
 
         loop {
-            let now = clock::now_micros()?;
+            let now = clock::now_micros().map_err(ProtocolError::new)?;
             if now >= deadline {
                 // timeout
                 return Ok(None);
             }
             let timeout = Duration::from_micros((deadline - now).try_into().unwrap());
             if let Ok(response) = runtime::timeout(timeout, self.ky_channel.recv_datagram()).await {
-                let mut response = response?;
+                let mut response = response.map_err(ProtocolError::new)?;
                 // endpoint_id: 2 bytes
                 // req_id: 4 bytes
                 // t1: 8 bytes
                 // t2: 8 bytes
                 // t3: 8 bytes
                 assert!(response.len() == 30);
-                let t4 = clock::now_micros()?;
+                let t4 = clock::now_micros().map_err(ProtocolError::new)?;
                 let endpoint_id = response.get_u16();
                 assert!(endpoint_id == self.ky_channel.endpoint_id());
                 let id = response.get_u32();
@@ -136,21 +139,28 @@ impl ClockSyncServerProtocol {
 
     pub async fn serve(&mut self) -> Result<(), ProtocolError> {
         loop {
-            let datagram = self.ky_channel.recv_datagram().await?;
+            let datagram = self
+                .ky_channel
+                .recv_datagram()
+                .await
+                .map_err(ProtocolError::new)?;
             // endpoint_id: 2 bytes
             // req_id: 4 bytes
             // t1: 8 bytes
             assert!(datagram.len() == 14);
-            let t2 = clock::now_micros()?;
+            let t2 = clock::now_micros().map_err(ProtocolError::new)?;
 
             let mut buf = BytesMut::with_capacity(30);
             buf.extend_from_slice(&datagram);
             buf.put_i64(t2);
 
-            let t3 = clock::now_micros()?;
+            let t3 = clock::now_micros().map_err(ProtocolError::new)?;
 
             buf.put_i64(t3);
-            self.ky_channel.send_datagram(buf.freeze()).await?;
+            self.ky_channel
+                .send_datagram(buf.freeze())
+                .await
+                .map_err(ProtocolError::new)?;
         }
     }
 }

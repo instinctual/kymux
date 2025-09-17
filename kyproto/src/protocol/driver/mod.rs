@@ -25,21 +25,3 @@ pub(crate) trait ProtocolRecvDriver: KySend {
 
     async fn recv(&mut self) -> Result<Option<Self::Packet>, ProtocolError>;
 }
-
-macro_rules! impl_protocol_error_from {
-    ($t:ty) => {
-        impl From<$t> for ProtocolError {
-            fn from(value: $t) -> Self {
-                Self(format!("{value:?}"))
-            }
-        }
-    };
-}
-
-impl_protocol_error_from!(ConnectionError);
-impl_protocol_error_from!(SendDatagramError);
-impl_protocol_error_from!(ReadError);
-impl_protocol_error_from!(ReadExactError);
-impl_protocol_error_from!(WriteError);
-impl_protocol_error_from!(ClosedStreamError);
-impl_protocol_error_from!(router::RouterError);

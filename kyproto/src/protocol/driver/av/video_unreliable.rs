@@ -264,7 +264,7 @@ impl VideoUnreliableProtocolSendDriver {
         ky_channel: KyChannel,
         _protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<Self, ProtocolError> {
-        let stream = ky_channel.open_uni().await?;
+        let stream = ky_channel.open_uni().await.map_err(ProtocolError::new)?;
         Ok(Self {
             ky_channel,
             stream,
@@ -313,7 +313,10 @@ impl VideoUnreliableProtocolSendDriver {
 
             debug!("send datagram {kypacket_seq}:{datagram_number} (group={group_seq:?})");
 
-            self.ky_channel.send_datagram(buf.freeze()).await?;
+            self.ky_channel
+                .send_datagram(buf.freeze())
+                .await
+                .map_err(ProtocolError::new)?;
 
             offset += payload_size;
             datagram_number += 1;
@@ -339,7 +342,10 @@ impl ProtocolSendDriver for VideoUnreliableProtocolSendDriver {
                 buf.put_u64(0); // meaningless
                 buf.put(&packet.header.serialize()[..]);
                 info!("WRITE codec packet");
-                self.stream.write_all(&buf).await?;
+                self.stream
+                    .write_all(&buf)
+                    .await
+                    .map_err(ProtocolError::new)?;
             }
             AVPacket::Media(packet) => {
                 if packet.header.is_config {
@@ -354,7 +360,10 @@ impl ProtocolSendDriver for VideoUnreliableProtocolSendDriver {
                     buf.put_u32(self.group_seq);
                     buf.put(&packet.header.serialize()[..]);
                     buf.put(&packet.payload[..]);
-                    self.stream.write_all(&buf).await?;
+                    self.stream
+                        .write_all(&buf)
+                        .await
+                        .map_err(ProtocolError::new)?;
                 } else {
                     self.send_datagrams(packet).await?;
                 }
@@ -404,7 +413,7 @@ impl VideoUnreliableProtocolRecvDriver {
         mut ky_channel: KyChannel,
         protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<Self, ProtocolError> {
-        let stream = ky_channel.accept_uni().await?;
+        let stream = ky_channel.accept_uni().await.map_err(ProtocolError::new)?;
 
         let (tx, rx) = mpsc::channel(16);
         let (tx_client, rx_client) = mpsc::channel(16);
@@ -454,7 +463,10 @@ impl VideoUnreliableProtocolRecvDriver {
     ) -> Result<(), ProtocolError> {
         loop {
             let mut seqs = [0; 8];
-            stream.read_exact(&mut seqs).await?;
+            stream
+                .read_exact(&mut seqs)
+                .await
+                .map_err(ProtocolError::new)?;
             let raw_kypacket_seq = BigEndian::read_u32(&seqs[..4]);
             let raw_group_seq = BigEndian::read_u32(&seqs[4..]);
 
@@ -467,7 +479,8 @@ impl VideoUnreliableProtocolRecvDriver {
                 raw_kypacket_seq,
                 raw_group_seq,
             }))
-            .await?;
+            .await
+            .map_err(ProtocolError::new)?;
         }
     }
 
@@ -476,7 +489,10 @@ impl VideoUnreliableProtocolRecvDriver {
         tx: mpsc::Sender<RecvMsg>,
     ) -> Result<(), ProtocolError> {
         loop {
-            let mut datagram = ky_channel.recv_datagram().await?;
+            let mut datagram = ky_channel
+                .recv_datagram()
+                .await
+                .map_err(ProtocolError::new)?;
             assert!(datagram.len() >= DATAGRAM_HEADER_SIZE);
             let _endpoint_id = datagram.get_u16();
             let raw_kypacket_seq = datagram.get_u32();
@@ -493,7 +509,8 @@ impl VideoUnreliableProtocolRecvDriver {
                 datagram_number,
                 end,
             }))
-            .await?;
+            .await
+            .map_err(ProtocolError::new)?;
         }
     }
 
@@ -515,7 +532,7 @@ impl VideoUnreliableProtocolRecvDriver {
                         Some(RecvMsg::Stream(msg)) => {
                             if let AVPacket::Codec(packet) = &msg.packet {
                                 debug!("===== SEND codec packet to client");
-                                tx_client.send(msg.packet).await?;
+                                tx_client.send(msg.packet).await.map_err(ProtocolError::new)?;
                                 continue;
                             }
 
@@ -583,7 +600,7 @@ impl VideoUnreliableProtocolRecvDriver {
                         }
                     }
                     next_kypacket_seq = kypacket_seq + 1;
-                    tx_client.send(packet).await?;
+                    tx_client.send(packet).await.map_err(ProtocolError::new)?;
                     deadline = None;
                 }
             }

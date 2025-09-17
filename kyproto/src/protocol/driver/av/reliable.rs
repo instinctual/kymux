@@ -20,7 +20,7 @@ impl ReliableProtocolSendDriver {
         ky_channel: KyChannel,
         _protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<Self, ProtocolError> {
-        let send = ky_channel.open_uni().await?;
+        let send = ky_channel.open_uni().await.map_err(ProtocolError::new)?;
         Ok(Self { ky_channel, send })
     }
 }
@@ -34,12 +34,21 @@ impl ProtocolSendDriver for ReliableProtocolSendDriver {
         match packet {
             AVPacket::Codec(packet) => {
                 let header = packet.header.serialize();
-                self.send.write_all(&header).await?;
+                self.send
+                    .write_all(&header)
+                    .await
+                    .map_err(ProtocolError::new)?;
             }
             AVPacket::Media(packet) => {
                 let header = packet.header.serialize();
-                self.send.write_all(&header).await?;
-                self.send.write_all(&packet.payload).await?;
+                self.send
+                    .write_all(&header)
+                    .await
+                    .map_err(ProtocolError::new)?;
+                self.send
+                    .write_all(&packet.payload)
+                    .await
+                    .map_err(ProtocolError::new)?;
             }
             AVPacket::Hole(_) => panic!("Unexpected input hole packet"),
         }
@@ -58,7 +67,7 @@ impl ReliableProtocolRecvDriver {
         mut ky_channel: KyChannel,
         _protocol_stats: &KyArc<KyMutex<ProtocolStats>>,
     ) -> Result<Self, ProtocolError> {
-        let recv = ky_channel.accept_uni().await?;
+        let recv = ky_channel.accept_uni().await.map_err(ProtocolError::new)?;
         Ok(Self { ky_channel, recv })
     }
 }
