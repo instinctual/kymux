@@ -1,5 +1,5 @@
 use crate::serial::{Deserializer, Serializer};
-use std::io::Result;
+use kyproto_types::ProtocolError;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
@@ -19,8 +19,11 @@ impl<T> IpcSend<T> {
         }
     }
 
-    pub async fn send(&mut self, packet: T) -> Result<()> {
-        self.serializer.write(packet, &mut self.writer).await
+    pub async fn send(&mut self, packet: T) -> Result<(), ProtocolError> {
+        self.serializer
+            .write(packet, &mut self.writer)
+            .await
+            .map_err(ProtocolError::new)
     }
 }
 
@@ -40,8 +43,11 @@ impl<T> IpcRecv<T> {
         }
     }
 
-    pub async fn recv(&mut self) -> Result<Option<T>> {
-        self.deserializer.read(&mut self.reader).await
+    pub async fn recv(&mut self) -> Result<Option<T>, ProtocolError> {
+        self.deserializer
+            .read(&mut self.reader)
+            .await
+            .map_err(ProtocolError::new)
     }
 }
 
@@ -62,12 +68,12 @@ impl<TX, RX> Ipc<TX, RX> {
         Self { send, recv }
     }
 
-    pub async fn send(&mut self, packet: TX) -> Result<()> {
-        self.send.send(packet).await
+    pub async fn send(&mut self, packet: TX) -> Result<(), ProtocolError> {
+        self.send.send(packet).await.map_err(ProtocolError::new)
     }
 
-    pub async fn recv(&mut self) -> Result<Option<RX>> {
-        self.recv.recv().await
+    pub async fn recv(&mut self) -> Result<Option<RX>, ProtocolError> {
+        self.recv.recv().await.map_err(ProtocolError::new)
     }
 
     pub fn into_split(self) -> (IpcSend<TX>, IpcRecv<RX>) {
