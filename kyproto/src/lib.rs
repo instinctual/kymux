@@ -4,7 +4,6 @@ compile_error!("No feature selected, pass either --features=js or --features=tok
 use std::sync::atomic::{AtomicU16, Ordering};
 
 use control::{Control, ReadyNotifier};
-pub use error::*;
 use router::{KyChannel, Router};
 
 use async_trait::async_trait;
@@ -18,17 +17,18 @@ pub use connection::Server;
 pub use kyproto_types::av::*;
 pub use kyproto_types::input::*;
 pub use kyproto_types::metrics::*;
+pub use kyproto_types::*;
 pub use kyutil::DecodeHexError;
 pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 pub use protocol::{AudioProtocol, ProtocolRecv, ProtocolSend, VideoProtocol};
 
+pub use kynet::error::ConnectionError;
 pub use kynet::init_crypto;
 pub use kynet::ConnectionStats;
 
 pub mod clock;
 mod connection;
 mod control;
-pub mod error;
 mod protocol;
 mod router;
 pub mod runtime;
@@ -49,14 +49,7 @@ pub use connection::webtransport_js;
 #[cfg(all(feature = "kynet-wtransport", not(target_family = "wasm")))]
 pub use connection::wtransport;
 
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub trait ProtocolEndpoint {
-    type Protocol;
-
-    fn id(&self) -> u16;
-    async fn ready(self) -> Result<Self::Protocol, ProtocolError>;
-}
+pub use kyproto_types::ProtocolEndpoint;
 
 pub struct VideoServerEndpoint {
     id: u16,

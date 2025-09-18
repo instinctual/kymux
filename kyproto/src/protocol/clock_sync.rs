@@ -1,7 +1,7 @@
 use crate::clock;
-use crate::error::ProtocolError;
 use crate::router::KyChannel;
 use crate::runtime::{self, Duration, SystemTime, UNIX_EPOCH};
+use crate::ProtocolError;
 
 use bytes::{Buf, BufMut, BytesMut};
 

@@ -1,27 +1,6 @@
-use crate::error::ProtocolError;
-use crate::router;
-
-use async_trait::async_trait;
-use kynet::error::*;
-use kyutil::*;
-
 pub(crate) mod av;
 pub(crate) mod input;
 pub(crate) mod metrics;
 pub(crate) mod util;
 
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub(crate) trait ProtocolSendDriver: KySend {
-    type Packet;
-
-    async fn send(&mut self, packet: Self::Packet) -> Result<(), ProtocolError>;
-}
-
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-pub(crate) trait ProtocolRecvDriver: KySend {
-    type Packet;
-
-    async fn recv(&mut self) -> Result<Option<Self::Packet>, ProtocolError>;
-}
+pub(crate) use kyproto_types::{ProtocolRecvDriver, ProtocolSendDriver};

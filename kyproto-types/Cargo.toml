@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.73"
 byteorder = "1.4.3"
 bytes = "1.4.0"
+kyutil = { version = "0.1", path = "../kyutil" }
+thiserror = "1.0.47"

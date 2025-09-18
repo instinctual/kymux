@@ -1,9 +1,8 @@
 #![allow(unused)] // TODO remove
 
-use crate::error::ProtocolError;
 use crate::protocol::driver::{ProtocolRecvDriver, ProtocolSendDriver};
 use crate::router::KyChannel;
-use crate::ProtocolStats;
+use crate::{ProtocolError, ProtocolStats};
 
 use kyproto_types::av::{
     AVPacket, AVPacketHeader, CodecPacket, CodecPacketHeader, HolePacket, HolePacketHeader,
@@ -11,6 +10,7 @@ use kyproto_types::av::{
 };
 use kyproto_types::input::InputPacket;
 use kyproto_types::metrics::MetricsPacket;
+pub use kyproto_types::{ProtocolRecv, ProtocolSend};
 
 use async_trait::async_trait;
 use kyutil::*;
@@ -19,38 +19,6 @@ use thiserror::Error;
 
 pub(crate) mod clock_sync;
 pub(crate) mod driver;
-
-pub struct ProtocolSend<T> {
-    driver: Box<dyn ProtocolSendDriver<Packet = T>>,
-}
-
-impl<T> ProtocolSend<T> {
-    pub(crate) fn new(driver: impl ProtocolSendDriver<Packet = T> + 'static) -> Self {
-        Self {
-            driver: Box::new(driver),
-        }
-    }
-
-    pub async fn send(&mut self, packet: T) -> Result<(), ProtocolError> {
-        self.driver.send(packet).await
-    }
-}
-
-pub struct ProtocolRecv<T> {
-    driver: Box<dyn ProtocolRecvDriver<Packet = T>>,
-}
-
-impl<T> ProtocolRecv<T> {
-    pub(crate) fn new(driver: impl ProtocolRecvDriver<Packet = T> + 'static) -> Self {
-        Self {
-            driver: Box::new(driver),
-        }
-    }
-
-    pub async fn recv(&mut self) -> Result<Option<T>, ProtocolError> {
-        self.driver.recv().await
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum VideoProtocol {

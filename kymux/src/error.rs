@@ -7,12 +7,12 @@ pub enum Error {
     #[error("Kyproto connection error: {source:?}")]
     KyprotoConnectionError {
         #[from]
-        source: kyproto::error::ConnectionError,
+        source: kyproto::ConnectionError,
     },
     #[error("Kyproto protocol error: {source:?}")]
     KyprotoProtocolError {
         #[from]
-        source: kyproto::error::ProtocolError,
+        source: kyproto::ProtocolError,
     },
     #[error("IO Error  {source:?}")]
     IoError {
