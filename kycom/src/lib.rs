@@ -15,13 +15,13 @@ mod server;
 
 #[cfg(feature = "client")]
 pub use client::{
-    InputEndpoint, IpcEndpoint, MetricsClientEndpoint, MetricsServerEndpoint, VideoClientEndpoint,
+    InputEndpoint, MetricsClientEndpoint, MetricsServerEndpoint, VideoClientEndpoint,
     VideoServerEndpoint,
 };
-pub use ipc::{Ipc, IpcRecv, IpcSend};
 pub use kyproto_types::av::*;
 pub use kyproto_types::input::*;
 pub use kyproto_types::metrics::*;
+pub use kyproto_types::*;
 #[cfg(feature = "server")]
 pub use server::{Forwarder, KyCom, TcpForwarder};
 

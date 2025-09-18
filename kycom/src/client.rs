@@ -1,24 +1,14 @@
-use crate::ipc::{Ipc, IpcRecv, IpcSend};
-use crate::serial;
-use crate::KyComAddr;
+use crate::{ipc, serial, KyComAddr};
 
 use async_trait::async_trait;
 use kyproto_types::av::*;
 use kyproto_types::input::*;
 use kyproto_types::metrics::*;
-use kyproto_types::ProtocolError;
+use kyproto_types::{ProtocolEndpoint, ProtocolError, ProtocolRecv, ProtocolSend};
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-
-#[async_trait]
-pub trait IpcEndpoint {
-    type Ipc;
-
-    fn id(&self) -> u16;
-    async fn ready(self) -> Result<Self::Ipc, ProtocolError>;
-}
 
 async fn ready(tcp_stream: &mut TcpStream, endpoint_id: u16) -> Result<(), ProtocolError> {
     tcp_stream
@@ -42,16 +32,16 @@ impl VideoClientEndpoint {
 }
 
 #[async_trait]
-impl IpcEndpoint for VideoClientEndpoint {
-    type Ipc = IpcRecv<AVPacket>;
+impl ProtocolEndpoint for VideoClientEndpoint {
+    type Protocol = ProtocolRecv<AVPacket>;
 
     fn id(&self) -> u16 {
         self.addr.endpoint_id
     }
 
-    async fn ready(mut self) -> Result<Self::Ipc, ProtocolError> {
+    async fn ready(mut self) -> Result<Self::Protocol, ProtocolError> {
         ready(&mut self.tcp_stream, self.addr.endpoint_id).await?;
-        let ipc = IpcRecv::new(self.tcp_stream, serial::av::AVPacketDeserializer);
+        let ipc = ipc::create_recv_protocol(self.tcp_stream, serial::av::AVPacketDeserializer);
         Ok(ipc)
     }
 }
@@ -69,16 +59,16 @@ impl VideoServerEndpoint {
 }
 
 #[async_trait]
-impl IpcEndpoint for VideoServerEndpoint {
-    type Ipc = IpcSend<AVPacket>;
+impl ProtocolEndpoint for VideoServerEndpoint {
+    type Protocol = ProtocolSend<AVPacket>;
 
     fn id(&self) -> u16 {
         self.addr.endpoint_id
     }
 
-    async fn ready(mut self) -> Result<Self::Ipc, ProtocolError> {
+    async fn ready(mut self) -> Result<Self::Protocol, ProtocolError> {
         ready(&mut self.tcp_stream, self.addr.endpoint_id).await?;
-        let ipc = IpcSend::new(self.tcp_stream, serial::av::AVPacketSerializer);
+        let ipc = ipc::create_send_protocol(self.tcp_stream, serial::av::AVPacketSerializer);
         Ok(ipc)
     }
 }
@@ -96,16 +86,16 @@ impl InputEndpoint {
 }
 
 #[async_trait]
-impl IpcEndpoint for InputEndpoint {
-    type Ipc = Ipc<InputPacket, InputPacket>;
+impl ProtocolEndpoint for InputEndpoint {
+    type Protocol = (ProtocolSend<InputPacket>, ProtocolRecv<InputPacket>);
 
     fn id(&self) -> u16 {
         self.addr.endpoint_id
     }
 
-    async fn ready(mut self) -> Result<Self::Ipc, ProtocolError> {
+    async fn ready(mut self) -> Result<Self::Protocol, ProtocolError> {
         ready(&mut self.tcp_stream, self.addr.endpoint_id).await?;
-        let ipc = Ipc::new(
+        let ipc = ipc::create_bi_protocol(
             self.tcp_stream,
             serial::input::InputPacketSerializer,
             serial::input::InputPacketDeserializer,
@@ -127,16 +117,17 @@ impl MetricsClientEndpoint {
 }
 
 #[async_trait]
-impl IpcEndpoint for MetricsClientEndpoint {
-    type Ipc = IpcRecv<MetricsPacket>;
+impl ProtocolEndpoint for MetricsClientEndpoint {
+    type Protocol = ProtocolRecv<MetricsPacket>;
 
     fn id(&self) -> u16 {
         self.addr.endpoint_id
     }
 
-    async fn ready(mut self) -> Result<Self::Ipc, ProtocolError> {
+    async fn ready(mut self) -> Result<Self::Protocol, ProtocolError> {
         ready(&mut self.tcp_stream, self.addr.endpoint_id).await?;
-        let ipc = IpcRecv::new(self.tcp_stream, serial::metrics::MetricsPacketDeserializer);
+        let ipc =
+            ipc::create_recv_protocol(self.tcp_stream, serial::metrics::MetricsPacketDeserializer);
         Ok(ipc)
     }
 }
@@ -154,16 +145,17 @@ impl MetricsServerEndpoint {
 }
 
 #[async_trait]
-impl IpcEndpoint for MetricsServerEndpoint {
-    type Ipc = IpcSend<MetricsPacket>;
+impl ProtocolEndpoint for MetricsServerEndpoint {
+    type Protocol = ProtocolSend<MetricsPacket>;
 
     fn id(&self) -> u16 {
         self.addr.endpoint_id
     }
 
-    async fn ready(mut self) -> Result<Self::Ipc, ProtocolError> {
+    async fn ready(mut self) -> Result<Self::Protocol, ProtocolError> {
         ready(&mut self.tcp_stream, self.addr.endpoint_id).await?;
-        let ipc = IpcSend::new(self.tcp_stream, serial::metrics::MetricsPacketSerializer);
+        let ipc =
+            ipc::create_send_protocol(self.tcp_stream, serial::metrics::MetricsPacketSerializer);
         Ok(ipc)
     }
 }

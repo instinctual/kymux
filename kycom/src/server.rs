@@ -1,4 +1,4 @@
-use crate::ipc::{Ipc, IpcRecv, IpcSend};
+use crate::ipc;
 use crate::serial;
 use crate::KyComAddr;
 
@@ -197,23 +197,12 @@ impl Runner {
     }
 }
 
-pub async fn forward_protocol_send<T>(
-    mut proto: kyproto::ProtocolSend<T>,
-    mut ipc: IpcRecv<T>,
+pub async fn forward_protocol<T>(
+    mut input: kyproto::ProtocolRecv<T>,
+    mut output: kyproto::ProtocolSend<T>,
 ) -> Result<(), ProtocolError> {
-    while let Some(packet) = ipc.recv().await? {
-        proto.send(packet).await?;
-    }
-
-    Ok(())
-}
-
-pub async fn forward_protocol_recv<T>(
-    mut proto: kyproto::ProtocolRecv<T>,
-    mut ipc: IpcSend<T>,
-) -> Result<(), ProtocolError> {
-    while let Some(packet) = proto.recv().await? {
-        ipc.send(packet).await?;
+    while let Some(packet) = input.recv().await? {
+        output.send(packet).await?;
     }
 
     Ok(())
@@ -222,11 +211,11 @@ pub async fn forward_protocol_recv<T>(
 pub async fn forward_protocol_bi<TX: Send + 'static, RX: Send + 'static>(
     proto_send: kyproto::ProtocolSend<RX>,
     proto_recv: kyproto::ProtocolRecv<TX>,
-    ipc: Ipc<TX, RX>,
+    ipc_send: kyproto::ProtocolSend<TX>,
+    ipc_recv: kyproto::ProtocolRecv<RX>,
 ) -> Result<(), ProtocolError> {
-    let (ipc_send, ipc_recv) = ipc.into_split();
-    let send_task = tokio::spawn(async move { forward_protocol_send(proto_send, ipc_recv).await });
-    let recv_task = tokio::spawn(async move { forward_protocol_recv(proto_recv, ipc_send).await });
+    let send_task = tokio::spawn(async move { forward_protocol(ipc_recv, proto_send).await });
+    let recv_task = tokio::spawn(async move { forward_protocol(proto_recv, ipc_send).await });
     let (send_result, recv_result) = tokio::join!(send_task, recv_task);
     let _ = send_result.map_err(ProtocolError::new)?;
     let _ = recv_result.map_err(ProtocolError::new)?;
@@ -267,8 +256,8 @@ where
 {
     async fn forward_client_av_packets(self) -> Result<(), ProtocolError> {
         let (tcp_stream, protocol) = self.start().await?;
-        let ipc = IpcSend::new(tcp_stream, serial::av::AVPacketSerializer);
-        forward_protocol_recv(protocol, ipc).await
+        let ipc = ipc::create_send_protocol(tcp_stream, serial::av::AVPacketSerializer);
+        forward_protocol(protocol, ipc).await
     }
 }
 
@@ -278,8 +267,8 @@ where
 {
     pub async fn forward_server_av_packets(self) -> Result<(), ProtocolError> {
         let (tcp_stream, protocol) = self.start().await?;
-        let ipc = IpcRecv::new(tcp_stream, serial::av::AVPacketDeserializer);
-        forward_protocol_send(protocol, ipc).await
+        let ipc = ipc::create_recv_protocol(tcp_stream, serial::av::AVPacketDeserializer);
+        forward_protocol(ipc, protocol).await
     }
 }
 
@@ -320,12 +309,12 @@ impl Forwarder for TcpForwarder<kyproto::AudioServerEndpoint> {
 impl Forwarder for TcpForwarder<kyproto::InputEndpoint> {
     async fn forward(self) -> Result<(), ProtocolError> {
         let (tcp_stream, (protocol_send, protocol_recv)) = self.start().await?;
-        let ipc = Ipc::new(
+        let (ipc_send, ipc_recv) = ipc::create_bi_protocol(
             tcp_stream,
             serial::input::InputPacketSerializer,
             serial::input::InputPacketDeserializer,
         );
-        forward_protocol_bi(protocol_send, protocol_recv, ipc).await
+        forward_protocol_bi(protocol_send, protocol_recv, ipc_send, ipc_recv).await
     }
 }
 
@@ -333,7 +322,7 @@ impl Forwarder for TcpForwarder<kyproto::InputEndpoint> {
 impl Forwarder for TcpForwarder<kyproto::MetricsServerEndpoint> {
     async fn forward(self) -> Result<(), ProtocolError> {
         let (tcp_stream, protocol) = self.start().await?;
-        let ipc = IpcRecv::new(tcp_stream, serial::metrics::MetricsPacketDeserializer);
-        forward_protocol_send(protocol, ipc).await
+        let ipc = ipc::create_recv_protocol(tcp_stream, serial::metrics::MetricsPacketDeserializer);
+        forward_protocol(ipc, protocol).await
     }
 }

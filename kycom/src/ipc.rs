@@ -1,9 +1,10 @@
 use crate::serial::{Deserializer, Serializer};
-use kyproto_types::ProtocolError;
+use async_trait::async_trait;
+use kyproto_types::*;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
-pub struct IpcSend<T> {
+struct IpcSend<T> {
     writer: Box<dyn AsyncWrite + Send + Unpin>,
     serializer: Box<dyn Serializer<Packet = T> + Send>,
 }
@@ -18,8 +19,13 @@ impl<T> IpcSend<T> {
             serializer: Box::new(serializer),
         }
     }
+}
 
-    pub async fn send(&mut self, packet: T) -> Result<(), ProtocolError> {
+#[async_trait]
+impl<T: Send + 'static> ProtocolSendDriver for IpcSend<T> {
+    type Packet = T;
+
+    async fn send(&mut self, packet: T) -> Result<(), ProtocolError> {
         self.serializer
             .write(packet, &mut self.writer)
             .await
@@ -27,7 +33,7 @@ impl<T> IpcSend<T> {
     }
 }
 
-pub struct IpcRecv<T> {
+struct IpcRecv<T> {
     reader: Box<dyn AsyncRead + Send + Unpin>,
     deserializer: Box<dyn Deserializer<Packet = T> + Send>,
 }
@@ -42,8 +48,13 @@ impl<T> IpcRecv<T> {
             deserializer: Box::new(deserializer),
         }
     }
+}
 
-    pub async fn recv(&mut self) -> Result<Option<T>, ProtocolError> {
+#[async_trait]
+impl<T: Send + 'static> ProtocolRecvDriver for IpcRecv<T> {
+    type Packet = T;
+
+    async fn recv(&mut self) -> Result<Option<T>, ProtocolError> {
         self.deserializer
             .read(&mut self.reader)
             .await
@@ -51,32 +62,39 @@ impl<T> IpcRecv<T> {
     }
 }
 
-pub struct Ipc<TX, RX> {
-    send: IpcSend<TX>,
-    recv: IpcRecv<RX>,
+pub(crate) fn create_send_protocol<T>(
+    writer: impl AsyncWrite + Send + Unpin + 'static,
+    serializer: impl Serializer<Packet = T> + Send + 'static,
+) -> ProtocolSend<T>
+where
+    T: Send + 'static,
+{
+    let driver = IpcSend::new(writer, serializer);
+    ProtocolSend::new(driver)
 }
 
-impl<TX, RX> Ipc<TX, RX> {
-    pub(crate) fn new(
-        tcp: TcpStream,
-        serializer: impl Serializer<Packet = TX> + Send + 'static,
-        deserializer: impl Deserializer<Packet = RX> + Send + 'static,
-    ) -> Self {
-        let (reader, writer) = tcp.into_split();
-        let send = IpcSend::new(writer, serializer);
-        let recv = IpcRecv::new(reader, deserializer);
-        Self { send, recv }
-    }
+pub(crate) fn create_recv_protocol<T>(
+    reader: impl AsyncRead + Send + Unpin + 'static,
+    deserializer: impl Deserializer<Packet = T> + Send + 'static,
+) -> ProtocolRecv<T>
+where
+    T: Send + 'static,
+{
+    let driver = IpcRecv::new(reader, deserializer);
+    ProtocolRecv::new(driver)
+}
 
-    pub async fn send(&mut self, packet: TX) -> Result<(), ProtocolError> {
-        self.send.send(packet).await.map_err(ProtocolError::new)
-    }
-
-    pub async fn recv(&mut self) -> Result<Option<RX>, ProtocolError> {
-        self.recv.recv().await.map_err(ProtocolError::new)
-    }
-
-    pub fn into_split(self) -> (IpcSend<TX>, IpcRecv<RX>) {
-        (self.send, self.recv)
-    }
+pub(crate) fn create_bi_protocol<TX, RX>(
+    tcp: TcpStream,
+    serializer: impl Serializer<Packet = TX> + Send + 'static,
+    deserializer: impl Deserializer<Packet = RX> + Send + 'static,
+) -> (ProtocolSend<TX>, ProtocolRecv<RX>)
+where
+    TX: Send + 'static,
+    RX: Send + 'static,
+{
+    let (reader, writer) = tcp.into_split();
+    let send = create_send_protocol(writer, serializer);
+    let recv = create_recv_protocol(reader, deserializer);
+    (send, recv)
 }
