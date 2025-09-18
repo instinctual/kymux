@@ -78,10 +78,7 @@ impl KyCom {
         })
     }
 
-    pub fn forward_async<Endpoint>(
-        &mut self,
-        forwarder: TcpForwarder<Endpoint>,
-    ) -> Result<KyComAddr>
+    pub fn forward_async<Endpoint>(&mut self, forwarder: TcpForwarder<Endpoint>) -> KyComAddr
     where
         Endpoint: kyproto::ProtocolEndpoint + Send + 'static,
         TcpForwarder<Endpoint>: Forwarder,
@@ -94,8 +91,8 @@ impl KyCom {
         }
 
         let runner = self.runner.as_mut().unwrap();
-        runner.forward_async(forwarder)?;
-        Ok(addr)
+        runner.forward_async(forwarder);
+        addr
     }
 
     pub fn register_and_forward<Endpoint>(&mut self, endpoint: Endpoint) -> Result<KyComAddr>
@@ -104,7 +101,8 @@ impl KyCom {
         TcpForwarder<Endpoint>: Forwarder,
     {
         let forwarder = self.register(endpoint)?;
-        self.forward_async(forwarder)
+        let addr = self.forward_async(forwarder);
+        Ok(addr)
     }
 
     async fn listen(
@@ -172,7 +170,7 @@ impl Runner {
         Self { tasks: Vec::new() }
     }
 
-    fn forward_async<T>(&mut self, forwarder: T) -> Result<()>
+    fn forward_async<T>(&mut self, forwarder: T)
     where
         T: Forwarder + Send + 'static,
     {
@@ -192,8 +190,6 @@ impl Runner {
         });
 
         self.tasks.push(Task { join_handle });
-
-        Ok(())
     }
 }
 
