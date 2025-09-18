@@ -31,7 +31,7 @@ pub struct KyComAddr {
 }
 
 impl KyComAddr {
-    fn new(addr: SocketAddr, endpoint_id: u16) -> Self {
+    pub fn new(addr: SocketAddr, endpoint_id: u16) -> Self {
         Self { addr, endpoint_id }
     }
 
