@@ -8,7 +8,7 @@ pub use error::*;
 use router::{KyChannel, Router};
 
 use async_trait::async_trait;
-use kynet::util::*;
+use kyutil::*;
 
 #[cfg(all(
     any(feature = "kynet-quinn", feature = "kynet-wtransport"),
@@ -18,6 +18,7 @@ pub use connection::Server;
 pub use kyproto_types::av::*;
 pub use kyproto_types::input::*;
 pub use kyproto_types::metrics::*;
+pub use kyutil::DecodeHexError;
 pub use protocol::clock_sync::{ClockSyncClientProtocol, ClockSyncServerProtocol};
 pub use protocol::{AudioProtocol, ProtocolRecv, ProtocolSend, VideoProtocol};
 

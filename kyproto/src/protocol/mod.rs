@@ -13,7 +13,7 @@ use kyproto_types::input::InputPacket;
 use kyproto_types::metrics::MetricsPacket;
 
 use async_trait::async_trait;
-use kynet::util::*;
+use kyutil::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

@@ -2,7 +2,7 @@ use crate::runtime;
 
 use std::future::Future;
 
-use kynet::util::*;
+use kyutil::*;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::sync::oneshot;

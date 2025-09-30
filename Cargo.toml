@@ -9,4 +9,5 @@ members = [
     "kynet",
     "kyproto",
     "kyproto-types",
+    "kyutil",
 ]

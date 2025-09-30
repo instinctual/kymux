@@ -29,7 +29,7 @@ pub enum Error {
     #[error("WebtransportJS failed to decode hexstring: {source:?}")]
     DecodeHexError {
         #[from]
-        source: kyproto::error::DecodeHexError,
+        source: kyproto::DecodeHexError,
     },
     #[error("Endpoint creation has failed: {source:?}")]
     EndpointCreateFailed { source: std::io::Error },

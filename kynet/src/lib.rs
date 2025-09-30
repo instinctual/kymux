@@ -1,6 +1,6 @@
 use crate::driver::{ConnectionDriver, RecvStreamDriver, SendStreamDriver};
 use crate::error::*;
-use crate::util::*;
+use kyutil::*;
 
 #[cfg(all(feature = "kynet-quinn", not(target_family = "wasm")))]
 use crate::driver::quinn::QuinnConnectionDriver;
@@ -51,7 +51,6 @@ pub mod cert;
 
 mod driver;
 pub mod error;
-pub mod util;
 
 pub fn init_crypto() {
     #[cfg(any(feature = "kynet-quinn", feature = "kynet-wtransport"))]

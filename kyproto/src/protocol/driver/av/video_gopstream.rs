@@ -71,9 +71,9 @@ use crate::ProtocolStats;
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use kynet::error::{ConnectionError, ReadExactError};
-use kynet::util::*;
 use kynet::{RecvStream, SendStream};
 use kyproto_types::av::*;
+use kyutil::*;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use tokio::sync::mpsc;

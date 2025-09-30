@@ -4,8 +4,8 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 use kynet::error::*;
-use kynet::util::*;
 use kynet::{RecvStream, SendStream};
+use kyutil::*;
 #[allow(unused)]
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};

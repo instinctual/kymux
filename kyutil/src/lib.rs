@@ -1,6 +1,7 @@
 // Utils to be able to use Rc/RefCell on wasm and Arc/Mutex on other platforms.
 
 use std::ops::{Deref, DerefMut};
+use thiserror::Error;
 
 #[cfg(not(target_family = "wasm"))]
 pub type KyArc<T> = std::sync::Arc<T>;
@@ -84,13 +85,20 @@ impl<T> KySend for T {}
 #[cfg(target_family = "wasm")]
 impl<T> KySync for T {}
 
-pub fn hex_to_bytes(s: &str) -> Result<Vec<u8>, crate::error::DecodeHexError> {
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
+#[error("decode hex error")]
+pub enum DecodeHexError {
+    OddLength,
+    ParseInt(#[from] std::num::ParseIntError),
+}
+
+pub fn hex_to_bytes(s: &str) -> Result<Vec<u8>, DecodeHexError> {
     if s.len() % 2 == 0 {
         (0..s.len())
             .step_by(2)
             .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.into()))
             .collect()
     } else {
-        Err(crate::error::DecodeHexError::OddLength)
+        Err(DecodeHexError::OddLength)
     }
 }

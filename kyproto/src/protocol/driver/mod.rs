@@ -3,7 +3,7 @@ use crate::router;
 
 use async_trait::async_trait;
 use kynet::error::*;
-use kynet::util::*;
+use kyutil::*;
 
 pub(crate) mod av;
 pub(crate) mod input;

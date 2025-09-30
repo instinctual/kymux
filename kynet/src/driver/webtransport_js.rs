@@ -1,5 +1,4 @@
 use crate::error::*;
-use crate::util;
 use crate::{
     Connection, ConnectionDriver, ConnectionStats, RecvStream, RecvStreamDriver, SendStream,
     SendStreamDriver,
@@ -9,6 +8,7 @@ use std::cell::RefCell;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use kyutil::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
@@ -76,7 +76,7 @@ impl WebTransportJSHash {
     }
 
     pub fn new_from_hex(algorithm: impl Into<String>, hash: &str) -> Result<Self, DecodeHexError> {
-        let hash = util::hex_to_bytes(hash)?;
+        let hash = hex_to_bytes(hash)?;
         let this = Self::new(algorithm, hash);
         Ok(this)
     }
