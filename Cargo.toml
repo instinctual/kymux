@@ -10,10 +10,3 @@ members = [
     "kyproto",
     "kyproto-types",
 ]
-
-[workspace.dependencies]
-kycom = { path = "kycom" }
-kymux = { path = "kymux" }
-kynet = { path = "kynet" }
-kyproto = { path = "kyproto" }
-kyproto-types = { path = "kyproto-types" }
