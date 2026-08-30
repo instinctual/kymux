@@ -58,7 +58,7 @@ pub(crate) struct RouterClient {
 pub(crate) struct Router {
     conn: Connection,
     clients: KyArc<KyMutex<ClientMap>>,
-    tasks: Vec<Task>,
+    tasks: KyMutex<Vec<Task>>,
 }
 
 impl Router {
@@ -102,7 +102,17 @@ impl Router {
         Self {
             conn,
             clients,
-            tasks,
+            tasks: KyMutex::new(tasks),
+        }
+    }
+
+    pub(crate) fn stop(&self) {
+        let tasks = std::mem::take(&mut *self.tasks.lock());
+        for task in tasks {
+            let name = task.name.clone();
+            if task.cancel().is_err() {
+                debug!("Task {name} already stopped");
+            }
         }
     }
 
@@ -251,14 +261,7 @@ impl Router {
 
 impl Drop for Router {
     fn drop(&mut self) {
-        let tasks = std::mem::take(&mut self.tasks);
-        for task in tasks {
-            let name = task.name.clone();
-            let ret = task.cancel();
-            if ret.is_err() {
-                warn!("Task {name} seems to be already stopped");
-            }
-        }
+        self.stop();
     }
 }
 

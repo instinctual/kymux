@@ -87,7 +87,7 @@ impl State {
 pub(crate) struct Control {
     tx: mpsc::Sender<ControlMsg>,
     state: KyArc<State>,
-    tasks: Vec<Task>,
+    tasks: KyMutex<Vec<Task>>,
 }
 
 impl Control {
@@ -119,7 +119,17 @@ impl Control {
         Self {
             tx: control_tx,
             state,
-            tasks,
+            tasks: KyMutex::new(tasks),
+        }
+    }
+
+    pub(crate) fn stop(&self) {
+        let tasks = std::mem::take(&mut *self.tasks.lock());
+        for task in tasks {
+            let name = task.name.clone();
+            if task.cancel().is_err() {
+                debug!("Task {name} already stopped");
+            }
         }
     }
 
@@ -304,14 +314,7 @@ impl Control {
 
 impl Drop for Control {
     fn drop(&mut self) {
-        let tasks = std::mem::take(&mut self.tasks);
-        for task in tasks {
-            let name = task.name.clone();
-            let ret = task.cancel();
-            if ret.is_err() {
-                warn!("Task {name} seems to be already stopped");
-            }
-        }
+        self.stop();
     }
 }
 

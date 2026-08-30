@@ -640,6 +640,8 @@ impl Connection {
     }
 
     pub fn close(&self) {
+        self.control.stop();
+        self.router.stop();
         self.conn.close(0, "Closed by Kyproto user");
     }
 
@@ -666,6 +668,8 @@ impl Connection {
 
 impl Drop for Connection {
     fn drop(&mut self) {
+        self.control.stop();
+        self.router.stop();
         self.conn.close(0, "KyProto connection closed");
     }
 }
