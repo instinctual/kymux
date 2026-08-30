@@ -30,6 +30,7 @@ use tokio::sync::oneshot;
 pub(crate) struct Task {
     pub(crate) name: String,
     tx: oneshot::Sender<()>,
+    handle: runtime::JoinHandle<()>,
 }
 
 impl Task {
@@ -42,7 +43,7 @@ impl Task {
         let (tx, rx) = oneshot::channel();
         let task_name = name.clone();
 
-        runtime::spawn(async move {
+        let handle = runtime::spawn(async move {
             tokio::select! {
                 _ = rx => {
                     debug!("Task {task_name} interrupted");
@@ -53,10 +54,17 @@ impl Task {
             }
         });
 
-        Task { name, tx }
+        Task { name, tx, handle }
     }
 
     pub(crate) fn cancel(self) -> Result<(), ()> {
-        self.tx.send(())
+        // Sending the cooperative signal and then aborting without yielding
+        // guarantees the transport task cannot observe a connection close as
+        // an error during an intentional local shutdown. The signal retains
+        // the graceful path for runtimes that poll it immediately; abort is
+        // the deterministic backstop on every supported runtime.
+        let result = self.tx.send(());
+        self.handle.abort();
+        result
     }
 }
