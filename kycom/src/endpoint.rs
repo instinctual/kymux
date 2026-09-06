@@ -37,8 +37,26 @@ pub(crate) enum ChannelRole {
 
 pub struct Channel {
     addr: KyComAddr,
-    rx: oneshot::Receiver<std::io::Result<Connection>>,
+    pending: PendingConnection,
     role: ChannelRole,
+}
+
+enum PendingConnection {
+    Accepted(oneshot::Receiver<std::io::Result<Connection>>),
+    Connect,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unused_outbound_endpoint_does_not_spawn_a_connect_task() {
+        // No runtime exists here. Constructing/dropping an unpolled endpoint
+        // must not open a socket or spawn work that outlives its owner.
+        let addr = KyComAddr::new("127.0.0.1:1".parse().unwrap(), 7);
+        drop(Channel::connect(addr).into_video_server_endpoint());
+    }
 }
 
 impl Channel {
@@ -47,7 +65,11 @@ impl Channel {
         rx: oneshot::Receiver<std::io::Result<Connection>>,
         role: ChannelRole,
     ) -> Self {
-        Self { addr, rx, role }
+        Self {
+            addr,
+            pending: PendingConnection::Accepted(rx),
+            role,
+        }
     }
 
     pub fn addr(&self) -> KyComAddr {
@@ -55,22 +77,23 @@ impl Channel {
     }
 
     pub fn connect(addr: KyComAddr) -> Self {
-        let (tx, rx) = oneshot::channel();
-        tokio::spawn(async move {
-            let result_connection = Connection::connect(addr).await;
-            let _ = tx.send(result_connection);
-        });
-
-        Self::new(addr, rx, ChannelRole::Client)
+        // The caller's ready() future owns connection establishment. Dropping
+        // it cancels connect/handshake instead of leaving an orphan task alive.
+        Self {
+            addr,
+            pending: PendingConnection::Connect,
+            role: ChannelRole::Client,
+        }
     }
 
     async fn ready_internal(self) -> std::io::Result<Connection> {
         let endpoint_id = self.addr.endpoint_id;
-        let connection = self
-            .rx
-            .await
-            .map_err(|_| std::io::ErrorKind::ConnectionAborted)?;
-        let mut connection = connection?;
+        let mut connection = match self.pending {
+            PendingConnection::Accepted(rx) => rx
+                .await
+                .map_err(|_| std::io::ErrorKind::ConnectionAborted)??,
+            PendingConnection::Connect => Connection::connect(self.addr).await?,
+        };
 
         assert!(connection.addr.endpoint_id == endpoint_id);
         if self.role == ChannelRole::Client {
